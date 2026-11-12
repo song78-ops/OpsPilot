@@ -1,0 +1,6 @@
+Qdrant Local 持久化
+
+Qdrant Client Local Mode 将向量和集合信息写入本地目录，不需要 Docker。本地模式会锁定数据目录，同一路径只能由一个后端进程打开，因此开发时应使用单个 Uvicorn worker。
+
+错误代码 QDRANT_LOCK_409 表示本地目录已被其他进程占用。关闭服务时应主动关闭 Qdrant Client，避免 Windows 文件锁残留。索引清单需要记录 Embedding 模型、向量维度和索引版本，服务重启后可从本地目录恢复检索。
+

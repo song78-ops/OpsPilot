@@ -1,0 +1,187 @@
+{
+  "version": 1,
+  "description": "OpsPilot Dense/BM25/Hybrid retrieval evaluation. Labels are manually assigned before running retrieval.",
+  "queries": [
+    {
+      "id": "q01",
+      "question": "CACHE_ERR_504 表示什么，应该检查哪些指标？",
+      "type": "keyword",
+      "relevant_documents": ["redis_cache"]
+    },
+    {
+      "id": "q02",
+      "question": "出现 ORDER_DB_401 时应该检查什么？",
+      "type": "keyword",
+      "relevant_documents": ["mysql_order"]
+    },
+    {
+      "id": "q03",
+      "question": "RAG_PIPE_200 状态代表文档完成了哪些处理？",
+      "type": "keyword",
+      "relevant_documents": ["rag_pipeline"]
+    },
+    {
+      "id": "q04",
+      "question": "TICKET_APPROVAL_302 状态下一步是什么？",
+      "type": "keyword",
+      "relevant_documents": ["agent_ticket"]
+    },
+    {
+      "id": "q05",
+      "question": "SEC_KEY_403 与密钥泄露有什么关系？",
+      "type": "keyword",
+      "relevant_documents": ["security_secrets"]
+    },
+    {
+      "id": "q06",
+      "question": "WIN_SERVICE_1067 应该查看哪些日志？",
+      "type": "keyword",
+      "relevant_documents": ["windows_service"]
+    },
+    {
+      "id": "q07",
+      "question": "FASTAPI_P95_300 告警代表什么？",
+      "type": "keyword",
+      "relevant_documents": ["fastapi_performance"]
+    },
+    {
+      "id": "q08",
+      "question": "SSE_EVENT_204 如何处理跨数据块事件？",
+      "type": "keyword",
+      "relevant_documents": ["vue_sse"]
+    },
+    {
+      "id": "q09",
+      "question": "QDRANT_LOCK_409 如何解决？",
+      "type": "keyword",
+      "relevant_documents": ["qdrant_local"]
+    },
+    {
+      "id": "q10",
+      "question": "EVAL_RECALL_003 对应的评测集要求是什么？",
+      "type": "keyword",
+      "relevant_documents": ["evaluation_metrics"]
+    },
+    {
+      "id": "q11",
+      "question": "CACHE_ERR_504 和 QDRANT_LOCK_409 分别属于什么故障？",
+      "type": "keyword_cross_document",
+      "relevant_documents": ["redis_cache", "qdrant_local"]
+    },
+    {
+      "id": "q12",
+      "question": "v2.7.3 发布增加了什么检查？",
+      "type": "product_version",
+      "relevant_documents": ["windows_service"]
+    },
+    {
+      "id": "q13",
+      "question": "热点数据同时过期导致数据库压力升高，应该怎么处理？",
+      "type": "semantic",
+      "relevant_documents": ["redis_cache"]
+    },
+    {
+      "id": "q14",
+      "question": "怎样保证库存扣减和订单写入不会只成功一半？",
+      "type": "semantic",
+      "relevant_documents": ["mysql_order"]
+    },
+    {
+      "id": "q15",
+      "question": "怎样让模型回答时能够追溯到企业原始资料？",
+      "type": "semantic",
+      "relevant_documents": ["rag_pipeline"]
+    },
+    {
+      "id": "q16",
+      "question": "智能助手创建工单前为什么需要人确认？",
+      "type": "semantic",
+      "relevant_documents": ["agent_ticket"]
+    },
+    {
+      "id": "q17",
+      "question": "浏览器应用中可以放置模型访问凭证吗？",
+      "type": "semantic",
+      "relevant_documents": ["security_secrets"]
+    },
+    {
+      "id": "q18",
+      "question": "Windows 服务启动后马上退出，排查入口在哪里？",
+      "type": "semantic",
+      "relevant_documents": ["windows_service"]
+    },
+    {
+      "id": "q19",
+      "question": "为什么异步接口仍会被同步操作拖慢？",
+      "type": "semantic",
+      "relevant_documents": ["fastapi_performance"]
+    },
+    {
+      "id": "q20",
+      "question": "网络包从一条流式事件的中间切断时，前端如何正确解析？",
+      "type": "semantic",
+      "relevant_documents": ["vue_sse"]
+    },
+    {
+      "id": "q21",
+      "question": "从文档切块到向量写入 Qdrant，需要保存哪些来源信息并注意什么持久化问题？",
+      "type": "cross_paragraph",
+      "relevant_documents": ["rag_pipeline", "qdrant_local"]
+    },
+    {
+      "id": "q22",
+      "question": "订单数据库同时关注事务和连接池时，分别要避免哪些问题？",
+      "type": "cross_paragraph",
+      "relevant_documents": ["mysql_order"]
+    },
+    {
+      "id": "q23",
+      "question": "Agent 调用工单工具前，如何同时满足人工审批和密钥安全要求？",
+      "type": "cross_paragraph",
+      "relevant_documents": ["agent_ticket", "security_secrets"]
+    },
+    {
+      "id": "q24",
+      "question": "SSE 的 UTF-8 字节边界和事件边界为什么需要一起处理？",
+      "type": "cross_paragraph",
+      "relevant_documents": ["vue_sse"]
+    },
+    {
+      "id": "q25",
+      "question": "Recall@3 和 MRR@5 分别如何计算，无答案问题怎样统计？",
+      "type": "cross_paragraph",
+      "relevant_documents": ["evaluation_metrics"]
+    },
+    {
+      "id": "q26",
+      "question": "员工年假余额应该在哪里查询？",
+      "type": "no_answer",
+      "relevant_documents": []
+    },
+    {
+      "id": "q27",
+      "question": "Kubernetes Ingress 的 TLS 证书如何自动续期？",
+      "type": "no_answer",
+      "relevant_documents": []
+    },
+    {
+      "id": "q28",
+      "question": "公司差旅报销标准是多少？",
+      "type": "no_answer",
+      "relevant_documents": []
+    },
+    {
+      "id": "q29",
+      "question": "AMD RX 7900 XTX 在 Windows 上如何安装驱动？",
+      "type": "no_answer",
+      "relevant_documents": []
+    },
+    {
+      "id": "q30",
+      "question": "请根据知识库生成下周部门会议纪要。",
+      "type": "no_answer",
+      "relevant_documents": []
+    }
+  ]
+}
+

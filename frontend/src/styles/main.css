@@ -1,0 +1,54 @@
+:root {
+  color: #183735;
+  background: #f6f8f7;
+  font-family:
+    "Noto Sans SC",
+    "PingFang SC",
+    "Microsoft YaHei",
+    "Segoe UI",
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  --ink: #1d3534;
+  --ink-muted: #7a8c89;
+  --accent: #0f766e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  width: 100%;
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+button,
+textarea,
+input {
+  font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  color: #073d39;
+  background: #99f6e4;
+}
+
+*:focus-visible {
+  outline: 2px solid rgb(13 148 136 / 55%);
+  outline-offset: 2px;
+}
+
