@@ -5,13 +5,14 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
 
 from app.agents.nodes import AgentNodes
 from app.agents.service import AgentService
 from app.agents.workflow import AgentWorkflow
+from app.approvals.service import TicketApprovalService
 from app.core.config import Settings, get_settings
-from app.core.exceptions import ConfigurationError
+from app.core.exceptions import ApplicationError, ConfigurationError
 from app.llm.base import LLMProvider
 from app.llm.deepseek import DeepSeekLLM
 from app.rag.service import DocumentService
@@ -339,6 +340,27 @@ def get_ticket_tool_executor(
     service: Annotated[TicketDraftService, Depends(get_ticket_service)],
 ) -> TicketToolExecutor:
     return TicketToolExecutor(service)
+
+
+def get_approval_service(request: Request) -> TicketApprovalService:
+    """Return the lifespan-owned approval service."""
+    service = getattr(request.app.state, "approval_service", None)
+    if not isinstance(service, TicketApprovalService):
+        raise ConfigurationError(
+            "The approval workflow is not initialized for this application."
+        )
+    return service
+
+
+def require_local_approval_access(request: Request) -> None:
+    """Keep the unauthenticated demo approval API on the local machine."""
+    host = request.client.host if request.client is not None else ""
+    if host not in {"127.0.0.1", "::1", "localhost", "testclient"}:
+        raise ApplicationError(
+            "The demo approval API is available from localhost only.",
+            code="APPROVAL_LOCAL_ONLY",
+            status_code=403,
+        )
 
 
 async def close_application_resources() -> None:

@@ -5,6 +5,13 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+TicketDraftStatus = Literal[
+    "draft",
+    "pending_approval",
+    "approved",
+    "rejected",
+]
+
 
 class CreateTicketDraftArgs(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -47,7 +54,8 @@ class TicketDraftResponse(BaseModel):
     title: str
     description: str
     device_or_system: str
-    status: Literal["draft"]
+    status: TicketDraftStatus
+    version: int
     created_at: datetime
     updated_at: datetime
 

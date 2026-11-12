@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.v1.agent import router as agent_router
+from app.api.v1.approvals import router as approvals_router
 from app.api.v1.chat import router as chat_router
 from app.api.v1.documents import router as documents_router
 from app.api.v1.health import router as health_router
@@ -17,5 +18,6 @@ api_router.include_router(documents_router)
 api_router.include_router(retrieval_router)
 api_router.include_router(rag_router)
 api_router.include_router(agent_router)
+api_router.include_router(approvals_router)
 api_router.include_router(tickets_router)
 

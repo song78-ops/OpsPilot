@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     agent_max_execution_steps: int = Field(default=10, ge=2, le=30)
     agent_max_tool_calls: int = Field(default=3, ge=1, le=10)
     ticket_database_path: Path = PROJECT_DIR / "storage" / "tickets.db"
+    approval_checkpoint_path: Path = (
+        PROJECT_DIR / "storage" / "approval_checkpoints.db"
+    )
 
     model_config = SettingsConfigDict(
         env_file=str(BACKEND_DIR / ".env"),
@@ -131,6 +134,12 @@ class Settings(BaseSettings):
         if self.ticket_database_path.is_absolute():
             return self.ticket_database_path
         return PROJECT_DIR / self.ticket_database_path
+
+    @property
+    def resolved_approval_checkpoint_path(self) -> Path:
+        if self.approval_checkpoint_path.is_absolute():
+            return self.approval_checkpoint_path
+        return PROJECT_DIR / self.approval_checkpoint_path
 
     @property
     def ticket_database_url(self) -> str:

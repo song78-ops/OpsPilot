@@ -5,9 +5,10 @@ OpsPilot 是一个面向企业内部知识库与智能工单场景的 AI Agent �
 当前已提供 FastAPI + DeepSeek 的非流式问答、SSE 流式问答、Vue3 聊天前端，
 知识库文档上传、解析、清洗、文本切块、BGE Dense Embedding + Qdrant 检索，
 BM25 + RRF 混合检索、BGE CrossEncoder CPU 精排，以及带引用校验的知识库增强问答。
-LangGraph 已提供 Supervisor 意图识别和单次动态路由；尚未包含正式工单审批、
-RAG SSE、多 Agent 循环和持久化 Agent 记忆。工单草稿已通过原生 tool_calls
-保存到 SQLite。
+LangGraph 已提供 Supervisor 意图识别、原生工具调用，以及基于
+`interrupt()` / `Command(resume)` 的本地人工审批工作流；尚未包含正式工单提交、
+正式身份认证、多租户、RAG SSE、多 Agent 循环和持久化 Agent 记忆。工单草稿和
+审批状态保存在 SQLite。
 
 ## 环境要求
 
@@ -193,6 +194,7 @@ Uvicorn worker，不要同时启动多个后端实例。如果目录已被占用
 | `AGENT_MAX_EXECUTION_STEPS` | `10` |
 | `AGENT_MAX_TOOL_CALLS` | `3` |
 | `TICKET_DATABASE_PATH` | `storage/tickets.db` |
+| `APPROVAL_CHECKPOINT_PATH` | `storage/approval_checkpoints.db` |
 
 Chunk 在 Embedding 前会按模型 Tokenizer 检查长度。超过 512 Token 的 Chunk 会带重叠
 拆成多个向量 Part，并继续保存原 `chunk_id`、`chunk_index` 和来源信息，不会丢弃尾部。
@@ -447,7 +449,8 @@ idempotency_key UNIQUE
 title
 description
 device_or_system
-status = draft
+status = draft / pending_approval / approved / rejected
+version
 created_at
 updated_at
 ```
@@ -467,7 +470,121 @@ storage/tickets.db
 - `GET /api/v1/tickets/drafts/{draft_id}`
 - `PATCH /api/v1/tickets/drafts/{draft_id}`
 
-本阶段不存在正式工单提交、审批或状态流转接口。
+`version` 是内容版本。草稿内容修改会递增版本，并且只有 `draft` 状态可以修改。
+本阶段不存在正式工单提交或外部工单系统集成。
+
+## 人工审批工作流
+
+审批使用独立的最小 LangGraph `StateGraph`，不修改 Supervisor 和工单工具循环：
+
+```text
+START
+→ load_draft（读取真实 SQLite 草稿）
+→ await_decision（interrupt() 持久化暂停）
+→ apply_decision（事务校验并写入 approved/rejected）
+→ END
+```
+
+状态转换只允许：
+
+```text
+draft → pending_approval → approved
+draft → pending_approval → rejected
+```
+
+接口：
+
+- `POST /api/v1/tickets/drafts/{draft_id}/request-approval`
+- `GET /api/v1/agent/approvals/{thread_id}`
+- `POST /api/v1/agent/approvals/{thread_id}/decision`
+
+请求审批不需要请求体，成功返回 `202`、唯一 `thread_id`、真实草稿快照和
+`checkpoint_next=["await_decision"]`。
+
+人工决策示例：
+
+```json
+{
+  "decision": "approve",
+  "note": "本地演示审批通过"
+}
+```
+
+`decision` 只允许 `approve` 或 `reject`。返回结果包含审批状态、实际草稿状态、
+备注、决策时间和真实执行节点：
+
+```json
+{
+  "executed_nodes": [
+    "load_draft",
+    "await_decision",
+    "apply_decision"
+  ]
+}
+```
+
+Checkpoint 使用独立的 `storage/approval_checkpoints.db`，由 FastAPI lifespan
+创建、初始化 `AsyncSqliteSaver` 并在进程退出时关闭。工作流反序列化显式禁用
+pickle fallback，并将 JSON/MessagePack 限制为内置安全类型。
+
+暂停与恢复过程：
+
+1. `request-approval` 先读取真实草稿，并启动对应 `thread_id` 的 LangGraph。
+2. `await_decision` 调用真实 `interrupt()`；此时草稿尚未发生状态写入。
+3. 确认 Checkpoint 确实停在 `await_decision` 后，同一业务事务写入审批映射、
+   `pending_approval` 状态和 `request` 审计记录。
+4. 决策接口先用当前 Checkpoint 确认存在有效 interrupt，再调用
+   `Command(resume={"decision": ..., "note": ...})`。
+5. `apply_decision` 在单个 SQLite 事务中同时更新草稿、审批映射和审计记录。
+
+并发与幂等保护：
+
+- 同一草稿只能有一个审批流程。
+- 同一审批只能批准或拒绝一次。
+- 相同 `thread_id` 的进程内决策串行执行。
+- 数据库更新使用 `status` 和 `version` 条件更新；条件更新失败则整个事务回滚。
+- `ticket_approval_audit` 对 `thread_id + action` 建立唯一约束。
+- 审批中或已结束的草稿不能通过普通 PATCH 修改。
+- 数据库事务失败不会返回成功；若节点失败后 Checkpoint 保留可重试任务，同一
+  决策可在数据库恢复后安全重试。
+
+业务数据库新增表：
+
+```text
+ticket_approvals
+  thread_id PRIMARY KEY
+  draft_id UNIQUE
+  draft_version
+  status
+  note
+  requested_at
+  decided_at
+
+ticket_approval_audit
+  id PRIMARY KEY
+  thread_id + action UNIQUE
+  draft_id
+  from_status
+  to_status
+  draft_version
+  note
+  created_at
+```
+
+已有 `tickets.db` 会在首次访问时执行轻量迁移，为 `ticket_drafts` 增加
+`version INTEGER NOT NULL DEFAULT 1`，不会删除已有草稿。
+
+审批接口当前没有正式身份认证、角色或租户隔离，只用于本机演示。路由会拒绝
+非 localhost 客户端，即使如此也不能把这个接口直接暴露到公网。
+
+Swagger 本地测试：
+
+1. 从 `GET /api/v1/tickets/drafts` 获取一个状态为 `draft` 的草稿 ID。
+2. 调用 `POST /api/v1/tickets/drafts/{draft_id}/request-approval`。
+3. 复制响应中的 `thread_id`，调用 `GET /api/v1/agent/approvals/{thread_id}`。
+4. 确认 `waiting_for_decision=true` 和草稿状态为 `pending_approval`。
+5. 调用决策接口，提交 `approve` 或 `reject` 以及可选备注。
+6. 再次查询草稿和审批，确认状态为 `approved` 或 `rejected`。
 
 ## 启动前端
 

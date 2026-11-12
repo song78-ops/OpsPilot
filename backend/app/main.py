@@ -7,8 +7,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.api.deps import close_application_resources
+from app.api.deps import (
+    close_application_resources,
+    get_ticket_repository,
+)
 from app.api.router import api_router
+from app.approvals.runtime import create_approval_runtime
 from app.core.config import get_settings
 from app.core.exceptions import ApplicationError
 
@@ -16,11 +20,22 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    """Release local model storage handles ordered by the application."""
+async def lifespan(application: FastAPI) -> AsyncIterator[None]:
+    """Own persistent approval checkpoints for the application lifetime."""
+    runtime = None
     try:
+        settings = get_settings()
+        repository = get_ticket_repository(settings)
+        runtime = await create_approval_runtime(
+            checkpoint_path=settings.resolved_approval_checkpoint_path,
+            repository=repository,
+            max_execution_steps=settings.agent_max_execution_steps,
+        )
+        application.state.approval_service = runtime.service
         yield
     finally:
+        if runtime is not None:
+            await runtime.close()
         await close_application_resources()
 
 
