@@ -102,6 +102,47 @@ class FakeStreamingClient:
         pass
 
 
+class FakeToolCompletions:
+    def __init__(self) -> None:
+        self.request_kwargs = None
+
+    async def create(self, **kwargs):
+        self.request_kwargs = kwargs
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content=None,
+                        tool_calls=[
+                            SimpleNamespace(
+                                id="call-123",
+                                function=SimpleNamespace(
+                                    name="create_ticket_draft",
+                                    arguments=(
+                                        '{"title":"电脑无法联网",'
+                                        '"description":"无法联网",'
+                                        '"device_or_system":"电脑"}'
+                                    ),
+                                ),
+                            )
+                        ],
+                    )
+                )
+            ],
+            model="deepseek-chat",
+            usage=SimpleNamespace(prompt_tokens=30, completion_tokens=12),
+        )
+
+
+class FakeToolClient:
+    def __init__(self) -> None:
+        self.completions = FakeToolCompletions()
+        self.chat = SimpleNamespace(completions=self.completions)
+
+    async def close(self) -> None:
+        pass
+
+
 async def test_deepseek_adapter_normalizes_completion() -> None:
     fake_client = FakeOpenAIClient()
     llm = DeepSeekLLM(
@@ -169,4 +210,41 @@ async def test_deepseek_adapter_streams_text_and_usage() -> None:
     assert chunks[-1].prompt_tokens == 18
     assert chunks[-1].completion_tokens == 9
     assert fake_client.chat.completions.response.closed is True
+
+
+async def test_deepseek_adapter_uses_native_tool_calls() -> None:
+    fake_client = FakeToolClient()
+    llm = DeepSeekLLM(
+        api_key="test-key",
+        base_url="https://api.deepseek.com",
+        model="deepseek-chat",
+        timeout_seconds=10,
+        max_retries=0,
+        temperature=0.2,
+        client=fake_client,
+    )
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "create_ticket_draft",
+                "description": "Create a draft",
+                "parameters": {"type": "object", "properties": {}},
+            },
+        }
+    ]
+
+    result = await llm.generate_with_tools(
+        messages=[{"role": "user", "content": "创建工单"}],
+        tools=tools,
+    )
+
+    assert fake_client.completions.request_kwargs["tools"] == tools
+    assert fake_client.completions.request_kwargs["tool_choice"] == "auto"
+    assert len(result.tool_calls) == 1
+    assert result.tool_calls[0].id == "call-123"
+    assert result.tool_calls[0].name == "create_ticket_draft"
+    assert "电脑无法联网" in result.tool_calls[0].arguments
+    assert result.prompt_tokens == 30
+    assert result.completion_tokens == 12
 

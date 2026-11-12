@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from app.api.deps import close_retrieval_resources
+from app.api.deps import close_application_resources
 from app.api.router import api_router
 from app.core.config import get_settings
 from app.core.exceptions import ApplicationError
@@ -21,7 +21,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     try:
         yield
     finally:
-        close_retrieval_resources()
+        await close_application_resources()
 
 
 def create_app() -> FastAPI:

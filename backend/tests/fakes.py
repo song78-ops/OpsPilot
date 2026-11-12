@@ -2,8 +2,13 @@
 
 from collections.abc import AsyncIterator
 import math
+from typing import Any
 
-from app.llm.base import LLMResult, LLMStreamChunk
+from app.llm.base import (
+    LLMResult,
+    LLMStreamChunk,
+    LLMToolResponse,
+)
 from app.rag.embeddings.base import EmbeddingModelInfo
 from app.rag.reranking.base import RerankerModelInfo, RerankScore
 
@@ -15,6 +20,8 @@ class FakeLLM:
         self,
         *,
         result: LLMResult | None = None,
+        results: list[LLMResult] | None = None,
+        tool_results: list[LLMToolResponse] | None = None,
         error: Exception | None = None,
         stream_chunks: list[LLMStreamChunk] | None = None,
     ) -> None:
@@ -24,6 +31,8 @@ class FakeLLM:
             prompt_tokens=20,
             completion_tokens=10,
         )
+        self.results = list(results) if results is not None else None
+        self.tool_results = list(tool_results) if tool_results is not None else None
         self.error = error
         self.stream_chunks = stream_chunks or [
             LLMStreamChunk(text="RAG "),
@@ -33,6 +42,10 @@ class FakeLLM:
         self.closed = False
         self.stream_closed = False
         self.generate_calls = 0
+        self._generate_index = 0
+        self._tool_index = 0
+        self.last_tool_messages: list[dict[str, Any]] = []
+        self.last_tools: list[dict[str, Any]] = []
         self.last_system_prompt = ""
         self.last_user_message = ""
 
@@ -44,7 +57,28 @@ class FakeLLM:
         self.last_user_message = user_message
         if self.error is not None:
             raise self.error
+        if self.results is not None:
+            index = min(self._generate_index, len(self.results) - 1)
+            self._generate_index += 1
+            return self.results[index]
+        self._generate_index += 1
         return self.result
+
+    async def generate_with_tools(
+        self,
+        *,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+    ) -> LLMToolResponse:
+        self.last_tool_messages = messages
+        self.last_tools = tools
+        if self.error is not None:
+            raise self.error
+        if self.tool_results is None:
+            raise AssertionError("FakeLLM tool_results are not configured")
+        index = min(self._tool_index, len(self.tool_results) - 1)
+        self._tool_index += 1
+        return self.tool_results[index]
 
     async def stream(
         self,

@@ -7,6 +7,9 @@ from typing import Annotated
 
 from fastapi import Depends
 
+from app.agents.nodes import AgentNodes
+from app.agents.service import AgentService
+from app.agents.workflow import AgentWorkflow
 from app.core.config import Settings, get_settings
 from app.core.exceptions import ConfigurationError
 from app.llm.base import LLMProvider
@@ -23,6 +26,12 @@ from app.rag.reranking.bge import BgeCrossEncoderReranker
 from app.rag.reranking.service import RerankService
 from app.rag.storage.local import LocalDocumentStore
 from app.services.chat_service import ChatService
+from app.tickets.repository import (
+    SQLAlchemyTicketDraftRepository,
+    TicketDraftRepository,
+)
+from app.tickets.service import TicketDraftService
+from app.tools.ticket_tools import TicketToolExecutor
 
 SYSTEM_PROMPT_PATH = (
     Path(__file__).resolve().parents[1] / "prompts" / "system" / "chat_system.txt"
@@ -33,7 +42,20 @@ RAG_SYSTEM_PROMPT_PATH = (
     / "system"
     / "rag_answer_system.txt"
 )
+SUPERVISOR_PROMPT_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "prompts"
+    / "system"
+    / "supervisor.txt"
+)
+TICKET_DRAFT_PROMPT_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "prompts"
+    / "system"
+    / "ticket_draft.txt"
+)
 _ACTIVE_VECTOR_STORES: list[QdrantVectorStore] = []
+_ACTIVE_TICKET_REPOSITORIES: list[SQLAlchemyTicketDraftRepository] = []
 
 
 async def get_llm_client(
@@ -212,14 +234,6 @@ def _build_bm25_store(
     )
 
 
-def close_retrieval_resources() -> None:
-    """Close local Qdrant clients before the process releases shared storage."""
-    for vector_store in _ACTIVE_VECTOR_STORES:
-        vector_store.close()
-    _ACTIVE_VECTOR_STORES.clear()
-    _build_vector_store.cache_clear()
-
-
 @lru_cache
 def _build_reranker(
     model_name: str,
@@ -295,4 +309,82 @@ def get_rag_qa_service(
         ),
         source_summary_chars=settings.rag_source_summary_chars,
     )
+
+
+@lru_cache
+def _build_ticket_repository(
+    database_url: str,
+) -> SQLAlchemyTicketDraftRepository:
+    repository = SQLAlchemyTicketDraftRepository(database_url)
+    _ACTIVE_TICKET_REPOSITORIES.append(repository)
+    return repository
+
+
+def get_ticket_repository(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> SQLAlchemyTicketDraftRepository:
+    return _build_ticket_repository(settings.ticket_database_url)
+
+
+def get_ticket_service(
+    repository: Annotated[
+        TicketDraftRepository,
+        Depends(get_ticket_repository),
+    ],
+) -> TicketDraftService:
+    return TicketDraftService(repository)
+
+
+def get_ticket_tool_executor(
+    service: Annotated[TicketDraftService, Depends(get_ticket_service)],
+) -> TicketToolExecutor:
+    return TicketToolExecutor(service)
+
+
+async def close_application_resources() -> None:
+    """Close local vector stores and SQLite engines before process exit."""
+    for vector_store in _ACTIVE_VECTOR_STORES:
+        vector_store.close()
+    _ACTIVE_VECTOR_STORES.clear()
+    _build_vector_store.cache_clear()
+    for repository in _ACTIVE_TICKET_REPOSITORIES:
+        await repository.close()
+    _ACTIVE_TICKET_REPOSITORIES.clear()
+    _build_ticket_repository.cache_clear()
+
+
+def get_agent_service(
+    llm: Annotated[LLMProvider, Depends(get_llm_client)],
+    rag_service: Annotated[
+        RagQAService,
+        Depends(get_rag_qa_service),
+    ],
+    chat_service: Annotated[
+        ChatService,
+        Depends(get_chat_service),
+    ],
+    ticket_tool_executor: Annotated[
+        TicketToolExecutor,
+        Depends(get_ticket_tool_executor),
+    ],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> AgentService:
+    nodes = AgentNodes(
+        llm=llm,
+        rag_service=rag_service,
+        chat_service=chat_service,
+        ticket_tool_executor=ticket_tool_executor,
+        supervisor_prompt=SUPERVISOR_PROMPT_PATH.read_text(
+            encoding="utf-8"
+        ).strip(),
+        ticket_prompt=TICKET_DRAFT_PROMPT_PATH.read_text(
+            encoding="utf-8"
+        ).strip(),
+        max_tool_calls=settings.agent_max_tool_calls,
+    )
+    workflow = AgentWorkflow(
+        nodes=nodes,
+        max_execution_steps=settings.agent_max_execution_steps,
+    )
+    return AgentService(workflow=workflow)
 

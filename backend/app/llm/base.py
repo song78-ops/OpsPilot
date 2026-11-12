@@ -2,7 +2,7 @@
 
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +25,26 @@ class LLMStreamChunk:
     completion_tokens: int | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class LLMToolCall:
+    """Normalized tool call returned by an OpenAI-compatible provider."""
+
+    id: str
+    name: str
+    arguments: str
+
+
+@dataclass(frozen=True, slots=True)
+class LLMToolResponse:
+    """Non-streaming completion that may contain tool calls."""
+
+    content: str | None
+    model: str
+    tool_calls: tuple[LLMToolCall, ...] = ()
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+
+
 class LLMProvider(Protocol):
     """Minimal interface required by the chat use case."""
 
@@ -39,6 +59,15 @@ class LLMProvider(Protocol):
         user_message: str,
     ) -> AsyncIterator[LLMStreamChunk]:
         """Yield incremental response text and optional usage data."""
+        ...
+
+    async def generate_with_tools(
+        self,
+        *,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+    ) -> LLMToolResponse:
+        """Generate with native OpenAI-compatible function calling."""
         ...
 
     async def aclose(self) -> None:

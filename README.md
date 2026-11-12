@@ -5,7 +5,9 @@ OpsPilot 是一个面向企业内部知识库与智能工单场景的 AI Agent �
 当前已提供 FastAPI + DeepSeek 的非流式问答、SSE 流式问答、Vue3 聊天前端，
 知识库文档上传、解析、清洗、文本切块、BGE Dense Embedding + Qdrant 检索，
 BM25 + RRF 混合检索、BGE CrossEncoder CPU 精排，以及带引用校验的知识库增强问答。
-尚未包含 RAG SSE、LangGraph、正式数据库和工单模块。
+LangGraph 已提供 Supervisor 意图识别和单次动态路由；尚未包含正式工单审批、
+RAG SSE、多 Agent 循环和持久化 Agent 记忆。工单草稿已通过原生 tool_calls
+保存到 SQLite。
 
 ## 环境要求
 
@@ -188,6 +190,9 @@ Uvicorn worker，不要同时启动多个后端实例。如果目录已被占用
 | `RERANKER_CANDIDATE_K` | `20` |
 | `RAG_CONTEXT_MAX_TOKENS` | `3000` |
 | `RAG_SOURCE_SUMMARY_CHARS` | `320` |
+| `AGENT_MAX_EXECUTION_STEPS` | `10` |
+| `AGENT_MAX_TOOL_CALLS` | `3` |
+| `TICKET_DATABASE_PATH` | `storage/tickets.db` |
 
 Chunk 在 Embedding 前会按模型 Tokenizer 检查长度。超过 512 Token 的 Chunk 会带重叠
 拆成多个向量 Part，并继续保存原 `chunk_id`、`chunk_index` 和来源信息，不会丢弃尾部。
@@ -362,6 +367,107 @@ python ..\evaluations\rag_retrieval_v1\run_evaluation.py
 ```
 
 结果输出到 `latest_results.json` 和 `latest_results.md`。
+
+## LangGraph Agent
+
+`POST /api/v1/agent/run` 使用真正的 LangGraph `StateGraph`：
+
+```text
+START
+→ supervisor
+→ add_conditional_edges
+   ├── knowledge_query → knowledge_node → END
+   ├── ticket_request  → ticket_agent
+   │                     ├── 无 tool_calls → END
+   │                     └── tool_calls → ticket_tools
+   │                                      → ticket_agent（有上限）
+   ├── general_chat    → chat_node → END
+   └── clarification   → clarification_node → END
+```
+
+Supervisor 使用 DeepSeek 结构化 JSON 输出判断意图，不使用关键词 if/else。
+
+请求：
+
+```json
+{
+  "message": "Redis 缓存击穿应该怎么解决？",
+  "conversation_id": null
+}
+```
+
+响应包含：
+
+- `intent`
+- `status`
+- `answer`
+- `ticket_draft`
+- `sources`
+- `executed_nodes`
+- `supervisor_reason`
+- `node_traces`
+- `latency_ms`
+- 真实 token usage
+- `tool_calls` 安全审计摘要
+- `memory_persisted=false`
+
+节点复用：
+
+- `knowledge` 调用现有 `RagQAService`，保留引用校验和证据不足状态。
+- `chat` 调用现有 `ChatService`。
+- `ticket_agent` 通过 DeepSeek 原生 `tools/tool_calls` 选择工单草稿工具。
+- `ticket_tools` 只执行白名单工具，并把工具结果反馈给模型继续生成。
+- `clarification` 不执行有副作用操作。
+
+Supervisor 返回非法 JSON 或未知意图时会安全路由到 clarification，不会触发工单
+或知识库节点。Supervisor 的超时、网络和上游 API 异常会保留为真实服务错误，
+不再伪装成用户需要澄清。`AGENT_MAX_EXECUTION_STEPS` 限制图的最大执行步数，
+`AGENT_MAX_TOOL_CALLS` 限制工具调用次数。
+
+`conversation_id` 当前只回显，不保存多轮记忆。
+
+### 工单草稿工具
+
+OpenAI 兼容工具定义：
+
+| 工具 | 参数 | 结果 |
+|---|---|---|
+| `create_ticket_draft` | `title`, `description`, `device_or_system` | 保存草稿并返回真实 draft ID |
+| `get_ticket_draft` | `draft_id` | 返回已持久化草稿 |
+| `update_ticket_draft` | `draft_id` 和至少一个可修改字段 | 更新草稿 |
+
+所有参数使用 Pydantic 校验。工具执行器只允许上述三个名称，不接受 Python 代码、
+SQL 或任意动态工具。
+
+SQLite 表 `ticket_drafts`：
+
+```text
+id
+idempotency_key UNIQUE
+title
+description
+device_or_system
+status = draft
+created_at
+updated_at
+```
+
+数据库文件：
+
+```text
+storage/tickets.db
+```
+
+工具调用 ID 经 SHA-256 生成幂等键。相同工具调用重试会返回已有草稿，不重复写入。
+数据库写入成功后，Agent 才回复“草稿已保存”。
+
+草稿 API：
+
+- `GET /api/v1/tickets/drafts`
+- `GET /api/v1/tickets/drafts/{draft_id}`
+- `PATCH /api/v1/tickets/drafts/{draft_id}`
+
+本阶段不存在正式工单提交、审批或状态流转接口。
 
 ## 启动前端
 

@@ -35,6 +35,8 @@ storage/qdrant-index-manifest.json
 storage/bm25/*
 storage/e2e/
 frontend/e2e/artifacts/
+storage/*.db
+storage/*.db-*
 
 # IDE and OS files
 .idea/

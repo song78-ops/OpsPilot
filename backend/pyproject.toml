@@ -9,6 +9,9 @@ description = "OpsPilot enterprise knowledge base and intelligent ticket agent b
 requires-python = ">=3.11,<3.12"
 dependencies = [
     "fastapi>=0.115,<1.0",
+    "langgraph>=1.0,<2.0",
+    "sqlalchemy[asyncio]>=2.0,<3.0",
+    "aiosqlite>=0.20,<1.0",
     "openai>=1.66,<3.0",
     "pydantic-settings>=2.7,<3.0",
     "pypdf>=5.1,<7.0",

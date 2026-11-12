@@ -181,3 +181,14 @@ class RerankerInputError(ApplicationError):
         )
 
 
+class AgentNodeExecutionError(ApplicationError):
+    """Raised when an Agent graph node fails unexpectedly."""
+
+    def __init__(self, node: str) -> None:
+        super().__init__(
+            f"The agent workflow failed while executing the {node} node.",
+            code="AGENT_NODE_ERROR",
+            status_code=500,
+        )
+
+

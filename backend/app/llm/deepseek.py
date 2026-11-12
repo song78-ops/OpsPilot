@@ -21,7 +21,12 @@ from app.core.exceptions import (
     LLMTimeoutError,
     LLMUpstreamError,
 )
-from app.llm.base import LLMResult, LLMStreamChunk
+from app.llm.base import (
+    LLMResult,
+    LLMStreamChunk,
+    LLMToolCall,
+    LLMToolResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +122,52 @@ class DeepSeekLLM:
             raise self._translate_api_error(exc) from exc
         finally:
             await self._close_stream(upstream_stream)
+
+    async def generate_with_tools(
+        self,
+        *,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]],
+    ) -> LLMToolResponse:
+        """Use native tools/tool_calls rather than parsing text JSON."""
+        try:
+            completion = await self._client.chat.completions.create(
+                model=self._model,
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+                temperature=self._temperature,
+            )
+        except APIError as exc:
+            raise self._translate_api_error(exc) from exc
+
+        if not completion.choices:
+            raise LLMUpstreamError("DeepSeek returned no completion choices.")
+
+        message = completion.choices[0].message
+        raw_tool_calls = getattr(message, "tool_calls", None) or []
+        tool_calls = tuple(
+            LLMToolCall(
+                id=str(call.id),
+                name=call.function.name,
+                arguments=call.function.arguments,
+            )
+            for call in raw_tool_calls
+        )
+        content = message.content
+        if not content and not tool_calls:
+            raise LLMUpstreamError(
+                "DeepSeek returned neither content nor tool calls."
+            )
+
+        usage = completion.usage
+        return LLMToolResponse(
+            content=content,
+            model=completion.model or self._model,
+            tool_calls=tool_calls,
+            prompt_tokens=usage.prompt_tokens if usage else 0,
+            completion_tokens=usage.completion_tokens if usage else 0,
+        )
 
     def _request_kwargs(
         self,

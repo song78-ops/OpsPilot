@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     reranker_candidate_k: int = Field(default=20, ge=1, le=100)
     rag_context_max_tokens: int = Field(default=3_000, ge=256, le=32_000)
     rag_source_summary_chars: int = Field(default=320, ge=80, le=2_000)
+    agent_max_execution_steps: int = Field(default=10, ge=2, le=30)
+    agent_max_tool_calls: int = Field(default=3, ge=1, le=10)
+    ticket_database_path: Path = PROJECT_DIR / "storage" / "tickets.db"
 
     model_config = SettingsConfigDict(
         env_file=str(BACKEND_DIR / ".env"),
@@ -122,6 +125,19 @@ class Settings(BaseSettings):
         if self.bm25_storage_dir.is_absolute():
             return self.bm25_storage_dir
         return PROJECT_DIR / self.bm25_storage_dir
+
+    @property
+    def resolved_ticket_database_path(self) -> Path:
+        if self.ticket_database_path.is_absolute():
+            return self.ticket_database_path
+        return PROJECT_DIR / self.ticket_database_path
+
+    @property
+    def ticket_database_url(self) -> str:
+        return (
+            "sqlite+aiosqlite:///"
+            + self.resolved_ticket_database_path.as_posix()
+        )
 
 
 @lru_cache
