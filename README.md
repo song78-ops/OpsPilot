@@ -8,8 +8,8 @@ Agent 智能助手页面，
 BM25 + RRF 混合检索、BGE CrossEncoder CPU 精排，以及带引用校验的知识库增强问答。
 LangGraph 已提供 Supervisor 意图识别、原生工具调用，以及基于
 `interrupt()` / `Command(resume)` 的本地人工审批工作流；尚未包含正式工单提交、
-正式身份认证、多租户、RAG SSE、多 Agent 循环和持久化 Agent 记忆。工单草稿和
-审批状态保存在 SQLite。
+正式身份认证、多租户、RAG SSE 和多 Agent 循环。工单、审批和 Agent 会话历史
+分别保存在本地 SQLite。
 
 ## 环境要求
 
@@ -194,7 +194,10 @@ Uvicorn worker，不要同时启动多个后端实例。如果目录已被占用
 | `RAG_SOURCE_SUMMARY_CHARS` | `320` |
 | `AGENT_MAX_EXECUTION_STEPS` | `10` |
 | `AGENT_MAX_TOOL_CALLS` | `3` |
+| `AGENT_HISTORY_MAX_MESSAGES` | `12` |
+| `AGENT_HISTORY_TOKEN_BUDGET` | `2000` |
 | `TICKET_DATABASE_PATH` | `storage/tickets.db` |
+| `CONVERSATION_DATABASE_PATH` | `storage/conversations.db` |
 | `APPROVAL_CHECKPOINT_PATH` | `storage/approval_checkpoints.db` |
 
 Chunk 在 Embedding 前会按模型 Tokenizer 检查长度。超过 512 Token 的 Chunk 会带重叠
@@ -412,7 +415,8 @@ Supervisor 使用 DeepSeek 结构化 JSON 输出判断意图，不使用关键�
 - `latency_ms`
 - 真实 token usage
 - `tool_calls` 安全审计摘要
-- `memory_persisted=false`
+- `conversation_id`
+- `memory_persisted=true`
 
 节点复用：
 
@@ -427,7 +431,73 @@ Supervisor 返回非法 JSON 或未知意图时会安全路由到 clarification�
 不再伪装成用户需要澄清。`AGENT_MAX_EXECUTION_STEPS` 限制图的最大执行步数，
 `AGENT_MAX_TOOL_CALLS` 限制工具调用次数。
 
-`conversation_id` 当前只回显，不保存多轮记忆。
+### 多轮会话记忆
+
+首次调用 `POST /api/v1/agent/run` 时可以不传 `conversation_id`，后端会生成唯一 ID
+并在响应中返回。后续请求传入同一 ID，即可使用该会话最近的历史消息和可信工单引用。
+
+会话数据库与审批 Checkpoint 分离：
+
+```text
+storage/conversations.db       Agent 会话和消息
+storage/tickets.db             工单与审批业务状态
+storage/approval_checkpoints.db LangGraph 人工审批 Checkpoint
+```
+
+Agent 每轮仍从 `START` 执行新增输入，没有使用 conversation_id 作为 LangGraph
+Checkpoint thread。因此上一轮的工具调用不会因恢复对话状态而重复执行。
+`conversation_id` 与审批 `thread_id` 没有混用。
+
+查询会话历史：
+
+```text
+GET /api/v1/agent/conversations/{conversation_id}?limit=50
+```
+
+响应包含真实 user、assistant、tool 消息，工具状态、业务引用和
+`last_ticket_draft_id`。Agent 和历史接口仅允许 localhost 访问，当前没有正式用户
+鉴权。
+
+会话表：
+
+```text
+agent_conversations
+  id PRIMARY KEY
+  created_at
+  updated_at
+  last_ticket_draft_id
+
+agent_conversation_messages
+  id PRIMARY KEY
+  conversation_id
+  role = user / assistant / tool
+  content
+  intent
+  status
+  tool_name
+  tool_status
+  business_reference_id
+  created_at
+```
+
+上下文规则：
+
+- 只有本会话工具真实成功返回的草稿 ID 会进入可信业务引用。
+- 使用前会重新查询 `tickets.db`；已删除的草稿引用会被忽略并清理。
+- 模型只能读取或修改本会话已关联的草稿，不能通过另一个 conversation_id
+  访问其他会话草稿。
+- 同一会话存在多个可编辑草稿且用户没有明确 ID 时，工具执行层会返回
+  `TICKET_TARGET_AMBIGUOUS`，要求用户澄清。
+- pending_approval、approved、rejected 草稿仍受原有数据库状态约束，不能通过
+  会话上下文绕过。
+- 工具幂等键包含 conversation_id，相同模型 tool_call_id 不会跨会话复用草稿。
+
+历史窗口从最新消息向旧消息选择，同时受 `AGENT_HISTORY_MAX_MESSAGES` 和
+`AGENT_HISTORY_TOKEN_BUDGET` 限制。Token 使用不依赖加载 BGE 模型的保守估算；
+不会无限把全部历史发送给模型。
+
+知识库节点只使用当前用户问题执行真实 RAG 检索。会话历史可帮助 Supervisor 理解
+连续提问，但不会替代检索证据，也不会把历史回答当作企业事实。
 
 ### 工单草稿工具
 
@@ -603,8 +673,8 @@ npm run dev
 Vite 开发服务器把 `/api` 请求代理到 `http://127.0.0.1:8000`。DeepSeek API Key
 只存在于后端 `backend/.env`，前端不读取、不保存也不发送该密钥。
 
-前端聊天历史只保存在当前页面内存中。发送新问题时只向后端提交当前问题，服务端
-目前没有持久化会话或多轮对话记忆。
+普通聊天页面的消息仍只保存在当前页面内存中。Agent 后端已支持持久化多轮会话，
+但本阶段没有开发 Vue3 会话历史页面；历史查询和多轮继续对话目前可通过 API 验证。
 
 页面导航包含：
 

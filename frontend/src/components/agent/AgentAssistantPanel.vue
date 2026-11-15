@@ -112,7 +112,7 @@ function handleKeydown(event: KeyboardEvent) {
         @keydown="handleKeydown"
       />
       <div class="composer-footer">
-        <span>Ctrl + Enter 提交 · 当前不保存多轮记忆</span>
+        <span>Ctrl + Enter 提交 · 本阶段页面暂未接入会话历史</span>
         <ElButton
           type="primary"
           native-type="button"

@@ -103,11 +103,7 @@ class AgentNodes:
         try:
             result = await self._llm.generate(
                 system_prompt=self._supervisor_prompt,
-                user_message=(
-                    "<user_request>\n"
-                    f"{state['message']}\n"
-                    "</user_request>"
-                ),
+                user_message=self._request_with_history(state),
             )
             decision = SupervisorDecision.model_validate(
                 _parse_json_object(result.content)
@@ -236,7 +232,10 @@ class AgentNodes:
     async def chat(self, state: AgentState) -> dict[str, Any]:
         started_at = time.perf_counter()
         try:
-            result = await self._chat_service.answer(state["message"])
+            result = await self._chat_service.answer(
+                state["message"],
+                history_context=state.get("history_context", ""),
+            )
         except ApplicationError as exc:
             logger.warning("Chat node failed code=%s", exc.code)
             raise
@@ -260,10 +259,11 @@ class AgentNodes:
         messages = list(state.get("ticket_messages", []))
         if not messages:
             messages = [{"role": "user", "content": state["message"]}]
+        system_context = self._ticket_system_context(state)
         try:
             result = await self._llm.generate_with_tools(
                 messages=[
-                    {"role": "system", "content": self._ticket_prompt},
+                    {"role": "system", "content": system_context},
                     *messages,
                 ],
                 tools=TICKET_TOOL_DEFINITIONS,
@@ -402,13 +402,32 @@ class AgentNodes:
         outcomes: list[dict] = []
         traces: list[AgentNodeTrace] = []
         tool_call_records: list[dict[str, Any]] = []
+        trusted_value = state.get("trusted_ticket_draft_ids")
+        trusted_ids = (
+            list(trusted_value)
+            if trusted_value is not None
+            else None
+        )
 
         for call in calls:
             call_started = time.perf_counter()
             outcome = await self._ticket_tool_executor.execute(
                 call,
                 conversation_id=state.get("conversation_id"),
+                trusted_ticket_draft_ids=trusted_ids,
+                ticket_target_ambiguous=state.get(
+                    "ticket_target_ambiguous",
+                    False,
+                ),
+                user_message=state["message"],
             )
+            if (
+                trusted_ids is not None
+                and outcome.ok
+                and outcome.draft is not None
+            ):
+                if outcome.draft.id not in trusted_ids:
+                    trusted_ids.append(outcome.draft.id)
             outcomes.append(outcome.model_dump(mode="json"))
             tool_messages.append(
                 self._ticket_tool_executor.tool_message(call, outcome)
@@ -437,6 +456,11 @@ class AgentNodes:
             "ticket_messages": tool_messages,
             "ticket_tool_results": outcomes,
             "pending_tool_calls": [],
+            **(
+                {"trusted_ticket_draft_ids": trusted_ids}
+                if trusted_ids is not None
+                else {}
+            ),
             "ticket_tool_call_count": (
                 int(state.get("ticket_tool_call_count", 0)) + len(calls)
             ),
@@ -452,6 +476,25 @@ class AgentNodes:
             "tool_calls": tool_call_records,
             "usage_parts": [],
         }
+
+    @staticmethod
+    def _request_with_history(state: AgentState) -> str:
+        history = state.get("history_context", "")
+        history_block = f"{history}\n\n" if history else ""
+        return (
+            f"{history_block}"
+            "<current_user_request>\n"
+            f"{state['message']}\n"
+            "</current_user_request>"
+        )
+
+    def _ticket_system_context(self, state: AgentState) -> str:
+        parts = [self._ticket_prompt]
+        if state.get("ticket_context"):
+            parts.append(state["ticket_context"])
+        if state.get("history_context"):
+            parts.append(state["history_context"])
+        return "\n\n".join(parts)
 
     async def clarification(self, state: AgentState) -> dict[str, Any]:
         started_at = time.perf_counter()

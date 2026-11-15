@@ -1,7 +1,5 @@
 """Agent workflow API schemas."""
 
-from typing import Literal
-
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.agents.state import AgentIntent, AgentStatus
@@ -47,5 +45,5 @@ class AgentRunResponse(BaseModel):
     node_traces: list[AgentNodeTraceResponse]
     tool_calls: list[AgentToolCallResponse]
     conversation_id: str | None
-    memory_persisted: Literal[False] = False
+    memory_persisted: bool = False
 

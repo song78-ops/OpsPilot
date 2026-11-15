@@ -39,6 +39,11 @@ class AgentToolCallRecord(TypedDict):
 class AgentState(TypedDict, total=False):
     message: str
     conversation_id: str | None
+    history_context: str
+    ticket_context: str
+    trusted_ticket_draft_ids: list[str] | None
+    ticket_target_ambiguous: bool
+    last_ticket_draft_id: str | None
     intent: AgentIntent
     status: AgentStatus
     supervisor_reason: str

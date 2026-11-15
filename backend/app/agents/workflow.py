@@ -31,15 +31,26 @@ class AgentWorkflow:
         *,
         message: str,
         conversation_id: str | None,
+        history_context: str = "",
+        ticket_context: str = "",
+        trusted_ticket_draft_ids: list[str] | None = None,
+        ticket_target_ambiguous: bool = False,
+        last_ticket_draft_id: str | None = None,
     ) -> AgentState:
         initial: AgentState = {
             "message": message,
             "conversation_id": conversation_id,
+            "history_context": history_context,
+            "ticket_context": ticket_context,
+            "ticket_target_ambiguous": ticket_target_ambiguous,
+            "last_ticket_draft_id": last_ticket_draft_id,
             "executed_nodes": [],
             "node_traces": [],
             "tool_calls": [],
             "usage_parts": [],
         }
+        if trusted_ticket_draft_ids is not None:
+            initial["trusted_ticket_draft_ids"] = trusted_ticket_draft_ids
         try:
             return await self._graph.ainvoke(
                 initial,

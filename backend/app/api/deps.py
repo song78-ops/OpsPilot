@@ -11,6 +11,11 @@ from app.agents.nodes import AgentNodes
 from app.agents.service import AgentService
 from app.agents.workflow import AgentWorkflow
 from app.approvals.service import TicketApprovalService
+from app.conversations.repository import (
+    ConversationRepository,
+    SQLAlchemyConversationRepository,
+)
+from app.conversations.service import ConversationMemoryService
 from app.core.config import Settings, get_settings
 from app.core.exceptions import ApplicationError, ConfigurationError
 from app.llm.base import LLMProvider
@@ -57,6 +62,9 @@ TICKET_DRAFT_PROMPT_PATH = (
 )
 _ACTIVE_VECTOR_STORES: list[QdrantVectorStore] = []
 _ACTIVE_TICKET_REPOSITORIES: list[SQLAlchemyTicketDraftRepository] = []
+_ACTIVE_CONVERSATION_REPOSITORIES: list[
+    SQLAlchemyConversationRepository
+] = []
 
 
 async def get_llm_client(
@@ -342,6 +350,42 @@ def get_ticket_tool_executor(
     return TicketToolExecutor(service)
 
 
+@lru_cache
+def _build_conversation_repository(
+    database_url: str,
+) -> SQLAlchemyConversationRepository:
+    repository = SQLAlchemyConversationRepository(database_url)
+    _ACTIVE_CONVERSATION_REPOSITORIES.append(repository)
+    return repository
+
+
+def get_conversation_repository(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> SQLAlchemyConversationRepository:
+    return _build_conversation_repository(
+        settings.conversation_database_url
+    )
+
+
+def get_conversation_memory_service(
+    repository: Annotated[
+        ConversationRepository,
+        Depends(get_conversation_repository),
+    ],
+    ticket_service: Annotated[
+        TicketDraftService,
+        Depends(get_ticket_service),
+    ],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> ConversationMemoryService:
+    return ConversationMemoryService(
+        repository=repository,
+        ticket_service=ticket_service,
+        max_history_messages=settings.agent_history_max_messages,
+        history_token_budget=settings.agent_history_token_budget,
+    )
+
+
 def get_approval_service(request: Request) -> TicketApprovalService:
     """Return the lifespan-owned approval service."""
     service = getattr(request.app.state, "approval_service", None)
@@ -363,6 +407,17 @@ def require_local_approval_access(request: Request) -> None:
         )
 
 
+def require_local_agent_access(request: Request) -> None:
+    """Protect unauthenticated Agent history and ticket references."""
+    host = request.client.host if request.client is not None else ""
+    if host not in {"127.0.0.1", "::1", "localhost", "testclient"}:
+        raise ApplicationError(
+            "The demo Agent API is available from localhost only.",
+            code="AGENT_LOCAL_ONLY",
+            status_code=403,
+        )
+
+
 async def close_application_resources() -> None:
     """Close local vector stores and SQLite engines before process exit."""
     for vector_store in _ACTIVE_VECTOR_STORES:
@@ -373,6 +428,10 @@ async def close_application_resources() -> None:
         await repository.close()
     _ACTIVE_TICKET_REPOSITORIES.clear()
     _build_ticket_repository.cache_clear()
+    for repository in _ACTIVE_CONVERSATION_REPOSITORIES:
+        await repository.close()
+    _ACTIVE_CONVERSATION_REPOSITORIES.clear()
+    _build_conversation_repository.cache_clear()
 
 
 def get_agent_service(
@@ -388,6 +447,10 @@ def get_agent_service(
     ticket_tool_executor: Annotated[
         TicketToolExecutor,
         Depends(get_ticket_tool_executor),
+    ],
+    conversation_memory: Annotated[
+        ConversationMemoryService,
+        Depends(get_conversation_memory_service),
     ],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AgentService:
@@ -408,5 +471,8 @@ def get_agent_service(
         nodes=nodes,
         max_execution_steps=settings.agent_max_execution_steps,
     )
-    return AgentService(workflow=workflow)
+    return AgentService(
+        workflow=workflow,
+        conversation_memory=conversation_memory,
+    )
 

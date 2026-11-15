@@ -61,7 +61,12 @@ class Settings(BaseSettings):
     rag_source_summary_chars: int = Field(default=320, ge=80, le=2_000)
     agent_max_execution_steps: int = Field(default=10, ge=2, le=30)
     agent_max_tool_calls: int = Field(default=3, ge=1, le=10)
+    agent_history_max_messages: int = Field(default=12, ge=2, le=100)
+    agent_history_token_budget: int = Field(default=2_000, ge=128, le=32_000)
     ticket_database_path: Path = PROJECT_DIR / "storage" / "tickets.db"
+    conversation_database_path: Path = (
+        PROJECT_DIR / "storage" / "conversations.db"
+    )
     approval_checkpoint_path: Path = (
         PROJECT_DIR / "storage" / "approval_checkpoints.db"
     )
@@ -136,6 +141,12 @@ class Settings(BaseSettings):
         return PROJECT_DIR / self.ticket_database_path
 
     @property
+    def resolved_conversation_database_path(self) -> Path:
+        if self.conversation_database_path.is_absolute():
+            return self.conversation_database_path
+        return PROJECT_DIR / self.conversation_database_path
+
+    @property
     def resolved_approval_checkpoint_path(self) -> Path:
         if self.approval_checkpoint_path.is_absolute():
             return self.approval_checkpoint_path
@@ -146,6 +157,13 @@ class Settings(BaseSettings):
         return (
             "sqlite+aiosqlite:///"
             + self.resolved_ticket_database_path.as_posix()
+        )
+
+    @property
+    def conversation_database_url(self) -> str:
+        return (
+            "sqlite+aiosqlite:///"
+            + self.resolved_conversation_database_path.as_posix()
         )
 
 

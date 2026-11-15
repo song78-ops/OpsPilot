@@ -97,6 +97,9 @@ class TicketToolExecutor:
         call: LLMToolCall,
         *,
         conversation_id: str | None,
+        trusted_ticket_draft_ids: list[str] | None = None,
+        ticket_target_ambiguous: bool = False,
+        user_message: str = "",
     ) -> ToolExecutionOutcome:
         if call.name not in ALLOWED_TOOL_NAMES:
             return ToolExecutionOutcome(
@@ -114,6 +117,9 @@ class TicketToolExecutor:
                 call=call,
                 arguments=arguments,
                 conversation_id=conversation_id,
+                trusted_ticket_draft_ids=trusted_ticket_draft_ids,
+                ticket_target_ambiguous=ticket_target_ambiguous,
+                user_message=user_message,
             )
         except ValidationError as exc:
             return ToolExecutionOutcome(
@@ -170,10 +176,16 @@ class TicketToolExecutor:
         call: LLMToolCall,
         arguments: dict,
         conversation_id: str | None,
+        trusted_ticket_draft_ids: list[str] | None,
+        ticket_target_ambiguous: bool,
+        user_message: str,
     ) -> ToolExecutionOutcome:
         if call.name == CREATE_TICKET_DRAFT:
             idempotency_key = hashlib.sha256(
-                f"{call.name}:{call.id}".encode("utf-8")
+                (
+                    f"{conversation_id or 'stateless'}:"
+                    f"{call.name}:{call.id}"
+                ).encode("utf-8")
             ).hexdigest()
             result = await self._service.create(
                 args=CreateTicketDraftArgs.model_validate(arguments),
@@ -194,6 +206,12 @@ class TicketToolExecutor:
 
         if call.name == GET_TICKET_DRAFT:
             args = GetTicketDraftArgs.model_validate(arguments)
+            scope_error = self._ticket_scope_error(
+                draft_id=args.draft_id,
+                trusted_ticket_draft_ids=trusted_ticket_draft_ids,
+            )
+            if scope_error is not None:
+                return scope_error
             draft = await self._service.get(args.draft_id)
             return ToolExecutionOutcome(
                 ok=True,
@@ -203,6 +221,24 @@ class TicketToolExecutor:
             )
 
         args = UpdateTicketDraftArgs.model_validate(arguments)
+        scope_error = self._ticket_scope_error(
+            draft_id=args.draft_id,
+            trusted_ticket_draft_ids=trusted_ticket_draft_ids,
+        )
+        if scope_error is not None:
+            return scope_error
+        if (
+            ticket_target_ambiguous
+            and args.draft_id not in user_message
+        ):
+            return ToolExecutionOutcome(
+                ok=False,
+                status="needs_more_info",
+                message=(
+                    "当前会话存在多个可编辑工单草稿，请明确要修改的草稿 ID。"
+                ),
+                error_code="TICKET_TARGET_AMBIGUOUS",
+            )
         draft = await self._service.update(
             args.draft_id,
             TicketDraftUpdateRequest(
@@ -217,6 +253,26 @@ class TicketToolExecutor:
             message=f"工单草稿 {draft.id} 已更新，尚未创建正式工单。",
             draft=draft,
         )
+
+    @staticmethod
+    def _ticket_scope_error(
+        *,
+        draft_id: str,
+        trusted_ticket_draft_ids: list[str] | None,
+    ) -> ToolExecutionOutcome | None:
+        if (
+            trusted_ticket_draft_ids is not None
+            and draft_id not in trusted_ticket_draft_ids
+        ):
+            return ToolExecutionOutcome(
+                ok=False,
+                status="error",
+                message=(
+                    "该工单草稿不属于当前会话，不能读取或修改。"
+                ),
+                error_code="TICKET_REFERENCE_NOT_ALLOWED",
+            )
+        return None
 
     @staticmethod
     def tool_message(

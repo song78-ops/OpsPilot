@@ -107,9 +107,16 @@ class StaticChatService:
         self.answer_text = answer
         self.error = error
         self.calls = []
+        self.history_contexts = []
 
-    async def answer(self, message: str) -> ChatResponse:
+    async def answer(
+        self,
+        message: str,
+        *,
+        history_context: str = "",
+    ) -> ChatResponse:
         self.calls.append(message)
+        self.history_contexts.append(history_context)
         if self.error is not None:
             raise self.error
         return ChatResponse(

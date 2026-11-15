@@ -78,7 +78,7 @@ export interface AgentRunResponse {
   node_traces: AgentNodeTrace[]
   tool_calls: AgentToolCall[]
   conversation_id: string | null
-  memory_persisted: false
+  memory_persisted: boolean
 }
 
 export interface ApprovalRecord {
