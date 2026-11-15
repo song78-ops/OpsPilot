@@ -1,17 +1,57 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { ElTag } from 'element-plus'
 import 'element-plus/es/components/tag/style/css'
 
 import AgentAssistantPanel from '../components/agent/AgentAssistantPanel.vue'
+import AgentSessionRail from '../components/agent/AgentSessionRail.vue'
 import TicketWorkspace from '../components/agent/TicketWorkspace.vue'
+import { useAgentAssistant } from '../composables/useAgentAssistant'
 import type { TicketDraft } from '../types/agent'
 
 const workspace = ref<InstanceType<typeof TicketWorkspace> | null>(null)
+const {
+  question,
+  conversations,
+  messages,
+  currentConversationId,
+  currentConversationTitle,
+  latestResult,
+  isRunning,
+  isLoadingConversations,
+  isLoadingHistory,
+  isBusy,
+  error,
+  notice,
+  restore,
+  refresh,
+  selectConversation,
+  startNewConversation,
+  send,
+} = useAgentAssistant()
 
 async function openDraft(draft: TicketDraft) {
   await workspace.value?.focusDraft(draft)
 }
+
+async function submitMessage() {
+  const response = await send()
+  if (response?.ticket_draft) {
+    await openDraft(response.ticket_draft)
+  }
+}
+
+function updateQuestion(value: string) {
+  question.value = value
+}
+
+async function chooseConversation(conversationId: string) {
+  await selectConversation(conversationId)
+}
+
+onMounted(() => {
+  void restore()
+})
 </script>
 
 <template>
@@ -36,8 +76,29 @@ async function openDraft(draft: TicketDraft) {
     </header>
 
     <div class="agent-layout">
-      <AgentAssistantPanel @draft-ready="openDraft" />
-      <TicketWorkspace ref="workspace" />
+      <AgentSessionRail
+        :conversations="conversations"
+        :current-conversation-id="currentConversationId"
+        :is-loading="isLoadingConversations"
+        :is-running="isBusy"
+        @new-conversation="startNewConversation"
+        @select-conversation="chooseConversation"
+        @refresh="refresh"
+      />
+      <AgentAssistantPanel
+        :question="question"
+        :messages="messages"
+        :latest-result="latestResult"
+        :current-conversation-id="currentConversationId"
+        :current-conversation-title="currentConversationTitle"
+        :is-running="isRunning"
+        :is-loading-history="isLoadingHistory"
+        :error="error"
+        :notice="notice"
+        @update:question="updateQuestion"
+        @send="submitMessage"
+      />
+      <TicketWorkspace ref="workspace" class="ticket-workspace" />
     </div>
 
     <p class="page-note">
@@ -143,7 +204,10 @@ async function openDraft(draft: TicketDraft) {
   display: grid;
   flex: 1;
   min-height: 0;
-  grid-template-columns: minmax(360px, 0.88fr) minmax(560px, 1.55fr);
+  grid-template-columns:
+    minmax(190px, 0.42fr)
+    minmax(330px, 0.82fr)
+    minmax(500px, 1.55fr);
   gap: 13px;
 }
 
@@ -157,7 +221,7 @@ async function openDraft(draft: TicketDraft) {
   text-align: center;
 }
 
-@media (max-width: 1220px) {
+@media (max-width: 1320px) {
   .agent-page {
     padding: 16px;
     overflow-y: auto;
@@ -165,7 +229,22 @@ async function openDraft(draft: TicketDraft) {
 
   .agent-layout {
     flex: none;
+    grid-template-columns: minmax(190px, 0.45fr) minmax(0, 1fr);
+  }
+
+  .ticket-workspace {
+    min-height: 680px;
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  .agent-layout {
     grid-template-columns: 1fr;
+  }
+
+  .ticket-workspace {
+    grid-column: auto;
   }
 }
 

@@ -451,8 +451,12 @@ Checkpoint thread。因此上一轮的工具调用不会因恢复对话状态而
 查询会话历史：
 
 ```text
+GET /api/v1/agent/conversations?limit=20&offset=0
 GET /api/v1/agent/conversations/{conversation_id}?limit=50
 ```
+
+会话列表按 `updated_at DESC` 排序，标题取首条用户消息的安全截断文本；空会话标题
+为“新会话”。列表只返回 conversation_id、标题、创建时间和更新时间。
 
 响应包含真实 user、assistant、tool 消息，工具状态、业务引用和
 `last_ticket_draft_id`。Agent 和历史接口仅允许 localhost 访问，当前没有正式用户
@@ -673,8 +677,8 @@ npm run dev
 Vite 开发服务器把 `/api` 请求代理到 `http://127.0.0.1:8000`。DeepSeek API Key
 只存在于后端 `backend/.env`，前端不读取、不保存也不发送该密钥。
 
-普通聊天页面的消息仍只保存在当前页面内存中。Agent 后端已支持持久化多轮会话，
-但本阶段没有开发 Vue3 会话历史页面；历史查询和多轮继续对话目前可通过 API 验证。
+普通聊天页面的消息仍只保存在当前页面内存中。Agent 页面已接入服务端会话列表和
+历史消息；浏览器 localStorage 只保存最近使用的 conversation_id，不保存聊天正文。
 
 页面导航包含：
 
@@ -688,14 +692,16 @@ Vite 开发服务器把 `/api` 请求代理到 `http://127.0.0.1:8000`。DeepSee
 
 ### Agent 智能助手页面
 
-页面分为两个工作区：
+页面分为三个工作区：
 
-- 左侧 Agent 助手调用 `POST /api/v1/agent/run`，根据 `intent` 和 `status`
+- 会话列表读取后端分页接口，支持新建会话、切换历史和刷新。
+- Agent 助手调用 `POST /api/v1/agent/run`，根据 `intent` 和 `status`
   分别展示知识库回答、普通聊天、需要补充的信息或真实工单草稿。
-- 右侧工单工作区读取真实草稿列表，支持查看、编辑 `draft` 状态草稿、提交审批、
+- 工单工作区读取真实草稿列表，支持查看、编辑 `draft` 状态草稿、提交审批、
   刷新审批 Checkpoint，以及批准或拒绝。
 
-Agent 结果还会展示：
+Agent 时间线消息来自服务端历史，包含 user、assistant 和 tool 执行摘要。当前页面
+刚完成一次运行时会额外展示：
 
 - `executed_nodes`
 - `node_traces`
@@ -704,6 +710,16 @@ Agent 结果还会展示：
 - Supervisor 判断原因和模型耗时
 
 页面不使用 `v-html`，Agent 回答、文档片段和工单内容都作为纯文本展示。
+
+页面刷新或重新进入时按以下顺序恢复：
+
+1. 请求服务端会话列表。
+2. 尝试 localStorage 中保存的最近 conversation_id。
+3. 从服务端重新加载该会话完整消息。
+4. 缓存 ID 已失效或服务端没有会话时，回退到更新时间最新的会话。
+
+切换会话会清空上一个会话的临时输入和当前运行详情，并整体替换为服务端返回的消息。
+页面对网络中断不会生成模拟消息，也不会假装 Agent SSE；Agent 仍是非流式接口。
 
 提交审批、批准和拒绝都会先显示确认对话框。审批操作完成后，前端会再次请求：
 
@@ -837,6 +853,21 @@ npm run test:e2e:knowledge
 npm run test:e2e:agent:intents
 npm run test:e2e:agent:smoke
 ```
+
+多轮会话刷新和重启恢复 E2E：
+
+```powershell
+cd D:\Projects\OpsPilot\frontend
+npm run test:e2e:conversation:prepare
+
+# 停止并重新启动 FastAPI
+
+npm run test:e2e:conversation:resume
+```
+
+`conversation:prepare` 会新建会话、完成工单创建和“刚才那个工单”修改，并刷新页面恢复；
+`conversation:resume` 在后端重启后从服务端列表恢复第一会话，创建第二个隔离会话，
+再切回第一会话并核对真实工单版本。
 
 需要验证后端重启时，按两阶段运行：
 

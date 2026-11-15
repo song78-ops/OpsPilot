@@ -41,16 +41,31 @@ async function openAgent(page) {
 }
 
 async function runTicketAgent(page, prompt) {
+  await submitAgentPrompt(page, prompt)
+  const draftRow = page.getByTestId('ticket-draft-row').first()
+  await draftRow.waitFor({ timeout: 60_000 })
+  const draftId = (await draftRow.getAttribute('data-draft-id')) ?? ''
+  assert.match(draftId, /^[0-9a-f]{32}$/)
+  return draftId
+}
+
+async function submitAgentPrompt(page, prompt) {
+  const previousAssistantCount = await page
+    .locator('[data-testid="agent-history-message"][data-role="assistant"]')
+    .count()
   await page.getByTestId('agent-input').fill(prompt)
   await page.getByTestId('agent-run').click()
-  await page.getByTestId('agent-draft-card').waitFor({ timeout: 180_000 })
-  const draftId = (
-    await page.getByTestId('agent-draft-card').locator('code').first().innerText()
-  ).trim()
-  assert.match(draftId, /^[0-9a-f]{32}$/)
-  await page.getByTestId('agent-open-draft').click()
-  await page.locator(`[data-testid="ticket-draft-row"][data-draft-id="${draftId}"]`).waitFor()
-  return draftId
+  await page.waitForFunction(
+    (previous) => (
+      document.querySelectorAll(
+        '[data-testid="agent-history-message"][data-role="assistant"]',
+      ).length > previous
+    ),
+    previousAssistantCount,
+    { timeout: 180_000 },
+  )
+  await page.getByTestId('agent-run').waitFor({ state: 'visible' })
+  assert.equal(await page.getByTestId('agent-error').count(), 0)
 }
 
 async function openDraft(page, draftId) {
@@ -107,13 +122,16 @@ async function smokeExistingPages(page) {
   })
 }
 
-async function verifyAgentIntent(page, prompt, heading) {
-  await page.getByTestId('agent-input').fill(prompt)
-  await page.getByTestId('agent-run').click()
-  await page.getByTestId('agent-result')
-    .getByRole('heading', { name: heading, level: 3 })
-    .waitFor({ timeout: 180_000 })
-  await page.getByTestId('agent-run').waitFor({ state: 'visible' })
+async function verifyAgentIntent(page, prompt, intent) {
+  await submitAgentPrompt(page, prompt)
+  await page.waitForFunction(
+    (expected) => (
+      document.querySelector('[data-testid="agent-current-intent"]')
+        ?.textContent?.trim() === expected
+    ),
+    intent,
+    { timeout: 30_000 },
+  )
   assert.equal(await page.getByTestId('agent-error').count(), 0)
 }
 
@@ -126,6 +144,7 @@ try {
   if (phase === 'prepare') {
     const { context, page } = await launchPage(browser)
     await openAgent(page)
+    await page.getByTestId('agent-new-conversation').click()
 
     const marker = Date.now()
     const title = `E2E 网络故障 ${marker}`
@@ -278,23 +297,32 @@ try {
   } else if (phase === 'intents') {
     const { context, page } = await launchPage(browser)
     await openAgent(page)
+    await page.getByTestId('agent-new-conversation').click()
 
-    await verifyAgentIntent(page, '你好，介绍一下你自己。', '普通聊天')
-    assert.ok(
-      (await page.getByTestId('agent-answer').innerText()).trim().length > 0,
+    await verifyAgentIntent(page, '你好，介绍一下你自己。', 'general_chat')
+    const generalAnswer = await page
+      .locator('[data-testid="agent-history-message"][data-role="assistant"]')
+      .last()
+      .innerText()
+    assert.ok(generalAnswer.trim().length > 0)
+
+    await verifyAgentIntent(
+      page,
+      'Redis 缓存击穿应该怎么解决？',
+      'knowledge_query',
     )
+    await page.getByText('redis_cache.txt').first().waitFor({
+      timeout: 180_000,
+    })
 
-    await verifyAgentIntent(page, 'Redis 缓存击穿应该怎么解决？', '知识库问答')
-    await page.getByText('知识库引用').waitFor({ timeout: 180_000 })
-
-    await verifyAgentIntent(page, '帮我处理一下这个问题。', '需要补充')
+    await verifyAgentIntent(page, '帮我处理一下这个问题。', 'clarification')
 
     await verifyAgentIntent(
       page,
       '帮我创建一个测试工单草稿，设备是 E2E 浏览器，描述为验证 Agent 页面意图。',
-      '工单请求',
+      'ticket_request',
     )
-    await page.getByTestId('agent-draft-card').waitFor()
+    await page.getByTestId('ticket-draft-row').first().waitFor()
     await page.screenshot({
       path: path.join(screenshotDir, 'agent-four-intents.png'),
       fullPage: true,

@@ -1,5 +1,6 @@
 """Persistent multi-turn Agent conversation memory tests."""
 
+import asyncio
 import json
 import sqlite3
 from dataclasses import dataclass
@@ -716,6 +717,13 @@ async def test_conversation_api_returns_persisted_history(
         conversation_id = run_body["conversation_id"]
         assert conversation_id
 
+        list_response = await client.get("/api/v1/agent/conversations?limit=10")
+        assert list_response.status_code == 200
+        listed = list_response.json()
+        assert listed["total"] >= 1
+        assert listed["items"][0]["conversation_id"] == conversation_id
+        assert listed["items"][0]["title"] == "你好"
+
         history_response = await client.get(
             f"/api/v1/agent/conversations/{conversation_id}"
         )
@@ -732,5 +740,49 @@ async def test_conversation_api_returns_persisted_history(
         )
         assert missing.status_code == 404
         assert missing.json()["error"]["code"] == "CONVERSATION_NOT_FOUND"
+    finally:
+        await harness.close()
+
+
+async def test_conversation_list_is_paginated_and_titled_by_first_user_message(
+    tmp_path: Path,
+) -> None:
+    harness = await make_harness(tmp_path)
+    try:
+        conversations = []
+        for index in range(3):
+            conversation = await harness.memory.begin_or_resume(None)
+            await harness.memory.record_turn(
+                conversation_id=conversation.id,
+                user_content=f"会话标题 {index}\n附加说明",
+                assistant_content=f"回答 {index}",
+                intent="general_chat",
+                status="completed",
+                tool_results=[],
+                last_ticket_draft_id=None,
+            )
+            conversations.append(conversation)
+            await asyncio.sleep(0.002)
+
+        first_page, total = await harness.memory.list_conversations(
+            limit=2,
+            offset=0,
+        )
+        second_page, _ = await harness.memory.list_conversations(
+            limit=2,
+            offset=2,
+        )
+
+        assert total == 3
+        assert [
+            item.conversation.id for item in first_page
+        ] == [
+            conversations[2].id,
+            conversations[1].id,
+        ]
+        assert first_page[0].title == "会话标题 2 附加说明"
+        assert [item.conversation.id for item in second_page] == [
+            conversations[0].id
+        ]
     finally:
         await harness.close()

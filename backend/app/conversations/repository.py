@@ -6,7 +6,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Protocol
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, func, select
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    func,
+    select,
+)
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
@@ -24,6 +32,7 @@ from app.conversations.types import (
     ConversationMessageRecord,
     ConversationRecord,
     ConversationRole,
+    ConversationSummary,
 )
 
 
@@ -97,6 +106,14 @@ class ConversationRepository(Protocol):
         ...
 
     async def count_messages(self, conversation_id: str) -> int:
+        ...
+
+    async def list_conversations(
+        self,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[ConversationSummary], int]:
         ...
 
     async def list_ticket_reference_ids(
@@ -221,6 +238,56 @@ class SQLAlchemyConversationRepository:
                     )
                 )
                 return int(value or 0)
+        except SQLAlchemyError as exc:
+            raise ConversationPersistenceError() from exc
+
+    async def list_conversations(
+        self,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[ConversationSummary], int]:
+        await self._ensure_schema()
+        first_user_message = (
+            select(ConversationMessageRow.content)
+            .where(
+                ConversationMessageRow.conversation_id == ConversationRow.id,
+                ConversationMessageRow.role == "user",
+            )
+            .order_by(ConversationMessageRow.id.asc())
+            .limit(1)
+            .correlate(ConversationRow)
+            .scalar_subquery()
+        )
+        try:
+            async with self._session_factory() as session:
+                rows = (
+                    await session.execute(
+                        select(
+                            ConversationRow,
+                            first_user_message.label("first_user_message"),
+                        )
+                        .order_by(
+                            ConversationRow.updated_at.desc(),
+                            ConversationRow.id.desc(),
+                        )
+                        .offset(offset)
+                        .limit(limit)
+                    )
+                ).all()
+                total = await session.scalar(
+                    select(func.count()).select_from(ConversationRow)
+                )
+                return (
+                    [
+                        ConversationSummary(
+                            conversation=self._conversation(row),
+                            title=self._title(first_message),
+                        )
+                        for row, first_message in rows
+                    ],
+                    int(total or 0),
+                )
         except SQLAlchemyError as exc:
             raise ConversationPersistenceError() from exc
 
@@ -388,6 +455,15 @@ class SQLAlchemyConversationRepository:
             business_reference_id=row.business_reference_id,
             created_at=SQLAlchemyConversationRepository._utc(row.created_at),
         )
+
+    @staticmethod
+    def _title(first_message: str | None) -> str:
+        if first_message is None:
+            return "新会话"
+        normalized = " ".join(first_message.split())
+        if not normalized:
+            return "新会话"
+        return normalized if len(normalized) <= 36 else f"{normalized[:36]}…"
 
     @staticmethod
     def _utc(value: datetime) -> datetime:

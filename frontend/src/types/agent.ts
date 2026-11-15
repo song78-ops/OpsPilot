@@ -81,6 +81,45 @@ export interface AgentRunResponse {
   memory_persisted: boolean
 }
 
+export type ConversationMessageRole = 'user' | 'assistant' | 'tool'
+
+export interface ConversationSummary {
+  conversation_id: string
+  title: string
+  created_at: string
+  updated_at: string
+}
+
+export interface ConversationListResponse {
+  items: ConversationSummary[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface ConversationMessage {
+  id: number
+  role: ConversationMessageRole
+  content: string
+  intent: AgentIntent | null
+  status: string | null
+  tool_name: string | null
+  tool_status: string | null
+  business_reference_id: string | null
+  created_at: string
+}
+
+export interface ConversationHistoryResponse {
+  conversation_id: string
+  created_at: string
+  updated_at: string
+  last_ticket_draft_id: string | null
+  ticket_references: string[]
+  total: number
+  messages: ConversationMessage[]
+  memory_persisted: true
+}
+
 export interface ApprovalRecord {
   thread_id: string
   draft_id: string

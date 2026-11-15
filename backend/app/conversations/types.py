@@ -57,3 +57,9 @@ class ConversationHistory:
     conversation: ConversationRecord
     messages: list[ConversationMessageRecord]
     total: int
+
+
+@dataclass(frozen=True, slots=True)
+class ConversationSummary:
+    conversation: ConversationRecord
+    title: str

@@ -3,10 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   AgentApiError,
   decideTicketApproval,
+  getAgentConversationHistory,
   getTicketApproval,
   getTicketApprovalByDraft,
   getTicketDraft,
   listTicketDrafts,
+  listAgentConversations,
   requestTicketApproval,
   runAgent,
   updateTicketDraft,
@@ -173,6 +175,73 @@ describe('agent API', () => {
     )
     expect(response.approval?.thread_id).toBe(approval.approval.thread_id)
     expect(response.waiting_for_decision).toBe(true)
+  })
+
+  it('loads paginated conversations and one real history response', async () => {
+    const conversationId = 'c'.repeat(32)
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          items: [
+            {
+              conversation_id: conversationId,
+              title: '电脑无法联网',
+              created_at: '2026-11-15T00:00:00Z',
+              updated_at: '2026-11-15T01:00:00Z',
+            },
+          ],
+          total: 1,
+          limit: 20,
+          offset: 0,
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          conversation_id: conversationId,
+          created_at: '2026-11-15T00:00:00Z',
+          updated_at: '2026-11-15T01:00:00Z',
+          last_ticket_draft_id: draft.id,
+          ticket_references: [draft.id],
+          total: 2,
+          messages: [
+            {
+              id: 1,
+              role: 'user',
+              content: '你好',
+              intent: null,
+              status: null,
+              tool_name: null,
+              tool_status: null,
+              business_reference_id: null,
+              created_at: '2026-11-15T00:00:00Z',
+            },
+            {
+              id: 2,
+              role: 'assistant',
+              content: '你好，我是 OpsPilot。',
+              intent: 'general_chat',
+              status: 'completed',
+              tool_name: null,
+              tool_status: null,
+              business_reference_id: null,
+              created_at: '2026-11-15T00:01:00Z',
+            },
+          ],
+          memory_persisted: true,
+        }),
+      )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const list = await listAgentConversations()
+    const history = await getAgentConversationHistory(conversationId)
+
+    expect(fetchMock.mock.calls[0][0]).toContain('limit=30')
+    expect(fetchMock.mock.calls[0][0]).toContain('offset=0')
+    expect(fetchMock.mock.calls[1][0]).toContain(
+      `/api/v1/agent/conversations/${conversationId}`,
+    )
+    expect(list.items[0].title).toBe('电脑无法联网')
+    expect(history.messages[1].content).toContain('OpsPilot')
   })
 
   it('maps 409 approval conflicts to a clear Chinese message', async () => {

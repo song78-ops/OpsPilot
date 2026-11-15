@@ -13,7 +13,9 @@
     "test:e2e:agent:prepare": "node e2e/agent-flow.mjs prepare",
     "test:e2e:agent:resume": "node e2e/agent-flow.mjs resume",
     "test:e2e:agent:smoke": "node e2e/agent-flow.mjs smoke",
-    "test:e2e:agent:intents": "node e2e/agent-flow.mjs intents"
+    "test:e2e:agent:intents": "node e2e/agent-flow.mjs intents",
+    "test:e2e:conversation:prepare": "node e2e/conversation-flow.mjs prepare",
+    "test:e2e:conversation:resume": "node e2e/conversation-flow.mjs resume"
   },
   "dependencies": {
     "element-plus": "^2.11.0",

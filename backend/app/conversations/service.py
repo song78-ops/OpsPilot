@@ -13,6 +13,7 @@ from app.conversations.types import (
     ConversationHistory,
     ConversationMessageRecord,
     ConversationRecord,
+    ConversationSummary,
     ToolResultRecord,
 )
 from app.schemas.ticket import TicketDraftResponse
@@ -271,6 +272,17 @@ class ConversationMemoryService:
                 continue
             verified.append(draft_id)
         return verified
+
+    async def list_conversations(
+        self,
+        *,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[ConversationSummary], int]:
+        return await self._repository.list_conversations(
+            limit=limit,
+            offset=offset,
+        )
 
 
 def ticket_context_text(context: ConversationContext) -> str:

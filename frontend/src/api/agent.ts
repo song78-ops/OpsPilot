@@ -3,6 +3,8 @@ import type {
   ApprovalDecisionRequest,
   ApprovalDecisionResponse,
   ApprovalDetailResponse,
+  ConversationHistoryResponse,
+  ConversationListResponse,
   DraftApprovalLookupResponse,
   TicketDraft,
   TicketDraftListResponse,
@@ -25,6 +27,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   LLM_CONNECTION_ERROR: '无法连接模型服务，请检查网络。',
   LLM_UPSTREAM_ERROR: '模型服务返回异常，请稍后重试。',
   CONFIGURATION_ERROR: '服务端尚未完成必要的模型配置。',
+  CONVERSATION_NOT_FOUND: '会话不存在或已经被移除。',
+  CONVERSATION_PERSISTENCE_ERROR: '会话历史写入失败，请稍后重试。',
   TICKET_DRAFT_NOT_FOUND: '工单草稿不存在或已经被移除。',
   TICKET_DRAFT_STATE_CONFLICT: '草稿当前状态不允许修改或提交审批。',
   TICKET_DRAFT_VERSION_CONFLICT: '草稿内容已变化，请刷新后重新审批。',
@@ -108,6 +112,29 @@ export async function runAgent(
       message,
       conversation_id: conversationId ?? null,
     }),
+  )
+}
+
+export async function listAgentConversations(
+  limit = 30,
+  offset = 0,
+): Promise<ConversationListResponse> {
+  const query = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  })
+  return requestJson<ConversationListResponse>(
+    `/api/v1/agent/conversations?${query.toString()}`,
+  )
+}
+
+export async function getAgentConversationHistory(
+  conversationId: string,
+  limit = 100,
+): Promise<ConversationHistoryResponse> {
+  const query = new URLSearchParams({ limit: String(limit) })
+  return requestJson<ConversationHistoryResponse>(
+    `/api/v1/agent/conversations/${conversationId}?${query.toString()}`,
   )
 }
 

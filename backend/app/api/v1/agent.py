@@ -14,7 +14,9 @@ from app.conversations.service import ConversationMemoryService
 from app.schemas.agent import AgentRunRequest, AgentRunResponse
 from app.schemas.conversation import (
     ConversationHistoryResponse,
+    ConversationListResponse,
     ConversationMessageResponse,
+    ConversationSummaryResponse,
 )
 
 router = APIRouter(
@@ -33,6 +35,36 @@ async def run_agent(
     return await service.run(
         message=payload.message,
         conversation_id=payload.conversation_id,
+    )
+
+
+@router.get("/conversations", response_model=ConversationListResponse)
+async def list_conversations(
+    service: Annotated[
+        ConversationMemoryService,
+        Depends(get_conversation_memory_service),
+    ],
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> ConversationListResponse:
+    """List local Agent sessions in reverse update order."""
+    conversations, total = await service.list_conversations(
+        limit=limit,
+        offset=offset,
+    )
+    return ConversationListResponse(
+        items=[
+            ConversationSummaryResponse(
+                conversation_id=item.conversation.id,
+                title=item.title,
+                created_at=item.conversation.created_at,
+                updated_at=item.conversation.updated_at,
+            )
+            for item in conversations
+        ],
+        total=total,
+        limit=limit,
+        offset=offset,
     )
 
 

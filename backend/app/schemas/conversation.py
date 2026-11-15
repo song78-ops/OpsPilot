@@ -27,3 +27,17 @@ class ConversationHistoryResponse(BaseModel):
     total: int
     messages: list[ConversationMessageResponse]
     memory_persisted: Literal[True] = True
+
+
+class ConversationSummaryResponse(BaseModel):
+    conversation_id: str
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ConversationListResponse(BaseModel):
+    items: list[ConversationSummaryResponse]
+    total: int
+    limit: int
+    offset: int
