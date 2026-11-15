@@ -2,7 +2,8 @@
 
 OpsPilot 是一个面向企业内部知识库与智能工单场景的 AI Agent 平台。
 
-当前已提供 FastAPI + DeepSeek 的非流式问答、SSE 流式问答、Vue3 聊天前端，
+当前已提供 FastAPI + DeepSeek 的非流式问答、SSE 流式问答、Vue3 聊天前端和
+Agent 智能助手页面，
 知识库文档上传、解析、清洗、文本切块、BGE Dense Embedding + Qdrant 检索，
 BM25 + RRF 混合检索、BGE CrossEncoder CPU 精排，以及带引用校验的知识库增强问答。
 LangGraph 已提供 Supervisor 意图识别、原生工具调用，以及基于
@@ -608,9 +609,49 @@ Vite 开发服务器把 `/api` 请求代理到 `http://127.0.0.1:8000`。DeepSee
 
 - **智能问答**：保留原有 DeepSeek 非流式/SSE 聊天能力。
 - **知识库问答**：上传文档、索引文档、执行 Dense/BM25/Hybrid RAG 问答并查看引用。
+- **Agent 助手**：运行 Supervisor 路由，查看意图结果、工具轨迹、真实工单草稿，
+  并完成本地人工审批。
 
 文档接口不返回持久化索引状态。前端只有在当前页面收到索引接口成功响应后，才显示
 “本次已索引”；刷新或重新加载页面后显示“索引状态不可知”，不会虚构持久状态。
+
+### Agent 智能助手页面
+
+页面分为两个工作区：
+
+- 左侧 Agent 助手调用 `POST /api/v1/agent/run`，根据 `intent` 和 `status`
+  分别展示知识库回答、普通聊天、需要补充的信息或真实工单草稿。
+- 右侧工单工作区读取真实草稿列表，支持查看、编辑 `draft` 状态草稿、提交审批、
+  刷新审批 Checkpoint，以及批准或拒绝。
+
+Agent 结果还会展示：
+
+- `executed_nodes`
+- `node_traces`
+- 白名单 `tool_calls`
+- 实际知识库 `sources`
+- Supervisor 判断原因和模型耗时
+
+页面不使用 `v-html`，Agent 回答、文档片段和工单内容都作为纯文本展示。
+
+提交审批、批准和拒绝都会先显示确认对话框。审批操作完成后，前端会再次请求：
+
+```text
+GET /api/v1/agent/approvals/{thread_id}
+GET /api/v1/tickets/drafts/{draft_id}
+GET /api/v1/tickets/drafts
+```
+
+只有重新查询到的审批状态和草稿状态一致时，页面才显示成功。409 冲突、审批流程
+不存在、网络错误和数据库错误都会显示明确中文提示。
+
+后端没有“按 draft_id 查询审批 thread_id”的接口，因此当前页面会把成功提交审批后
+返回的 `thread_id` 保存在浏览器 `localStorage` 中，仅用于本地演示和页面刷新恢复。
+如果草稿显示为 `pending_approval`，但当前浏览器没有对应 `thread_id`，页面会明确
+提示无法安全恢复，不会伪造审批能力。
+
+审批期间后端禁止 PATCH 草稿，前端也会禁用编辑入口。当前仍没有正式身份认证、审批人
+角色或多租户隔离，页面明确标记为 localhost 本地演示。
 
 ## 调用问答接口
 
@@ -702,7 +743,26 @@ npm run build
 ```powershell
 cd D:\Projects\OpsPilot\frontend
 npm run test:e2e:knowledge
+npm run test:e2e:agent:intents
+npm run test:e2e:agent:smoke
 ```
+
+需要验证后端重启时，按两阶段运行：
+
+```powershell
+# 第一个终端保持前后端运行
+cd D:\Projects\OpsPilot\frontend
+npm run test:e2e:agent:prepare
+
+# 停止并重新启动后端的 Uvicorn 进程
+
+cd D:\Projects\OpsPilot\frontend
+npm run test:e2e:agent:resume
+```
+
+`prepare` 会通过真实 Agent 创建并提交一份工单；`resume` 使用同一
+`draft_id/thread_id` 恢复等待流程，在浏览器批准后再创建一份草稿并拒绝。
+E2E 会创建真实本地工单数据，但不包含敏感文档或密钥。
 
 截图输出到 `frontend/e2e/artifacts`，该目录不会提交到 Git。
 

@@ -9,7 +9,11 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e:knowledge": "node e2e/knowledge-flow.mjs"
+    "test:e2e:knowledge": "node e2e/knowledge-flow.mjs",
+    "test:e2e:agent:prepare": "node e2e/agent-flow.mjs prepare",
+    "test:e2e:agent:resume": "node e2e/agent-flow.mjs resume",
+    "test:e2e:agent:smoke": "node e2e/agent-flow.mjs smoke",
+    "test:e2e:agent:intents": "node e2e/agent-flow.mjs intents"
   },
   "dependencies": {
     "element-plus": "^2.11.0",

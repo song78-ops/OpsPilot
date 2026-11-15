@@ -14,6 +14,7 @@ import 'element-plus/es/components/tag/style/css'
 import ChatComposer from './components/ChatComposer.vue'
 import ChatMessageBubble from './components/ChatMessageBubble.vue'
 import { useChat } from './composables/useChat'
+import AgentView from './views/AgentView.vue'
 import KnowledgeView from './views/KnowledgeView.vue'
 
 const {
@@ -26,7 +27,7 @@ const {
 } = useChat()
 
 const input = ref('')
-const activeView = ref<'chat' | 'knowledge'>('chat')
+const activeView = ref<'chat' | 'knowledge' | 'agent'>('chat')
 const messageViewport = ref<HTMLElement | null>(null)
 const composer = ref<InstanceType<typeof ChatComposer> | null>(null)
 const actionError = ref('')
@@ -149,6 +150,21 @@ onBeforeUnmount(() => {
             <span>知识库问答</span>
             <span v-if="activeView === 'knowledge'" class="nav-pulse" />
           </button>
+          <button
+            type="button"
+            class="nav-item"
+            :class="{ 'nav-item--active': activeView === 'agent' }"
+            data-testid="nav-agent"
+            @click="activeView = 'agent'"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="M7 3h10a2 2 0 0 1 2 2v3h1.25a.75.75 0 0 1 0 1.5H19v4h1.25a.75.75 0 0 1 0 1.5H19V19a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-3H3.75a.75.75 0 0 1 0-1.5H5v-4H3.75a.75.75 0 0 1 0-1.5H5V5a2 2 0 0 1 2-2Zm2 4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1H9Zm1 3.25h4v1.5h-4v-1.5Zm0 3h2.75v1.5H10v-1.5Z"
+              />
+            </svg>
+            <span>Agent 助手</span>
+            <span v-if="activeView === 'agent'" class="nav-pulse" />
+          </button>
         </nav>
       </div>
 
@@ -161,10 +177,22 @@ onBeforeUnmount(() => {
           </svg>
         </div>
         <p>
-          {{ activeView === 'chat' ? '面向企业知识场景的 AI 助手' : '检索增强的企业知识工作台' }}
+          {{
+            activeView === 'chat'
+              ? '面向企业知识场景的 AI 助手'
+              : activeView === 'knowledge'
+                ? '检索增强的企业知识工作台'
+                : '从自然语言到工单审批的 Agent 工作台'
+          }}
         </p>
         <span>
-          {{ activeView === 'chat' ? '支持 DeepSeek 实时流式问答' : 'Hybrid 检索 · 引用校验 · 证据不足拒答' }}
+          {{
+            activeView === 'chat'
+              ? '支持 DeepSeek 实时流式问答'
+              : activeView === 'knowledge'
+                ? 'Hybrid 检索 · 引用校验 · 证据不足拒答'
+                : 'Supervisor 路由 · Tool Calling · Human-in-the-loop'
+          }}
         </span>
       </div>
 
@@ -173,12 +201,26 @@ onBeforeUnmount(() => {
       <div class="session-note">
         <span class="session-note__dot" />
         <div>
-          <strong>{{ activeView === 'chat' ? '当前为单轮问答' : '问答与状态仅保留在本页' }}</strong>
-          <p>不提供服务端会话或索引状态持久化承诺</p>
+          <strong>
+            {{
+              activeView === 'chat'
+                ? '当前为单轮问答'
+                : activeView === 'knowledge'
+                  ? '问答与索引状态仅保留在本页'
+                  : '工单与审批使用真实本地持久化'
+            }}
+          </strong>
+          <p>
+            {{
+              activeView === 'agent'
+                ? '审批仅用于 localhost 本地演示'
+                : '不提供服务端会话或索引状态持久化承诺'
+            }}
+          </p>
         </div>
       </div>
 
-      <p class="version">OpsPilot · Phase 5 Preview</p>
+      <p class="version">OpsPilot · Phase 6 Preview</p>
     </aside>
 
     <main v-if="activeView === 'chat'" class="chat-panel">
@@ -278,7 +320,8 @@ onBeforeUnmount(() => {
       </footer>
     </main>
     <KeepAlive>
-      <KnowledgeView v-if="activeView === 'knowledge'" />
+      <AgentView v-if="activeView === 'agent'" />
+      <KnowledgeView v-else-if="activeView === 'knowledge'" />
     </KeepAlive>
   </div>
 </template>
