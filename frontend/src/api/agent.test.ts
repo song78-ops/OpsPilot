@@ -4,6 +4,7 @@ import {
   AgentApiError,
   decideTicketApproval,
   getTicketApproval,
+  getTicketApprovalByDraft,
   getTicketDraft,
   listTicketDrafts,
   requestTicketApproval,
@@ -151,6 +152,27 @@ describe('agent API', () => {
       decision: 'approve',
       note: '通过',
     })
+  })
+
+  it('looks up an approval by draft id without a local thread id', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        draft: approval.draft,
+        approval: approval.approval,
+        status: 'pending_approval',
+        waiting_for_decision: true,
+        checkpoint_next: ['await_decision'],
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    const response = await getTicketApprovalByDraft(draft.id)
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      `/api/v1/tickets/drafts/${draft.id}/approval`,
+    )
+    expect(response.approval?.thread_id).toBe(approval.approval.thread_id)
+    expect(response.waiting_for_decision).toBe(true)
   })
 
   it('maps 409 approval conflicts to a clear Chinese message', async () => {

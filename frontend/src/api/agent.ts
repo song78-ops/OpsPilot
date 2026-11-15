@@ -3,6 +3,7 @@ import type {
   ApprovalDecisionRequest,
   ApprovalDecisionResponse,
   ApprovalDetailResponse,
+  DraftApprovalLookupResponse,
   TicketDraft,
   TicketDraftListResponse,
   TicketDraftUpdateRequest,
@@ -28,6 +29,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   TICKET_DRAFT_STATE_CONFLICT: '草稿当前状态不允许修改或提交审批。',
   TICKET_DRAFT_VERSION_CONFLICT: '草稿内容已变化，请刷新后重新审批。',
   TICKET_APPROVAL_NOT_FOUND: '审批流程不存在，或本地记录的流程 ID 已失效。',
+  TICKET_APPROVAL_MAPPING_MISSING: '草稿状态显示已进入审批，但后端没有对应的审批映射。',
   TICKET_APPROVAL_STATE_CONFLICT: '该审批已经处理，不能重复批准或拒绝。',
   APPROVAL_CHECKPOINT_STATE_INVALID: '审批 Checkpoint 与业务状态不一致，请检查后端数据。',
   APPROVAL_WORKFLOW_ERROR: '审批工作流恢复失败，请检查后端服务。',
@@ -137,6 +139,14 @@ export async function requestTicketApproval(draftId: string): Promise<ApprovalDe
 export async function getTicketApproval(threadId: string): Promise<ApprovalDetailResponse> {
   return requestJson<ApprovalDetailResponse>(
     `/api/v1/agent/approvals/${threadId}`,
+  )
+}
+
+export async function getTicketApprovalByDraft(
+  draftId: string,
+): Promise<DraftApprovalLookupResponse> {
+  return requestJson<DraftApprovalLookupResponse>(
+    `/api/v1/tickets/drafts/${draftId}/approval`,
   )
 }
 

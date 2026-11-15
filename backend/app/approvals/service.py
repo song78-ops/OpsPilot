@@ -16,6 +16,7 @@ from app.schemas.approval import ApprovalDecisionRequest
 from app.schemas.ticket import TicketDraftResponse
 from app.tickets.exceptions import (
     ApprovalCheckpointStateError,
+    TicketApprovalMappingMissingError,
     TicketApprovalNotFoundError,
     TicketApprovalStateConflictError,
     TicketDraftNotFoundError,
@@ -40,6 +41,14 @@ class ApprovalDecisionView:
     transition: TicketApprovalTransition
     decision: str
     executed_nodes: list[str]
+
+
+@dataclass(frozen=True, slots=True)
+class DraftApprovalView:
+    draft: TicketDraftResponse
+    approval: TicketApprovalRecord | None
+    waiting_for_decision: bool
+    checkpoint_next: list[str]
 
 
 class TicketApprovalService:
@@ -116,11 +125,41 @@ class TicketApprovalService:
         draft = await self._repository.get(approval.draft_id)
         if draft is None:
             raise TicketDraftNotFoundError(approval.draft_id)
+        if draft.status != approval.status:
+            raise ApprovalCheckpointStateError(
+                "Approval mapping and ticket draft status do not match."
+            )
+        if draft.version != approval.draft_version:
+            raise TicketDraftVersionConflictError(draft.id)
         return ApprovalView(
             approval=approval,
             draft=draft,
             waiting_for_decision=waiting,
             checkpoint_next=list(snapshot.next),
+        )
+
+    async def get_by_draft(self, draft_id: str) -> DraftApprovalView:
+        """Resolve the persisted approval thread from a draft ID."""
+        draft = await self._repository.get(draft_id)
+        if draft is None:
+            raise TicketDraftNotFoundError(draft_id)
+        approval = await self._repository.get_approval_by_draft(draft_id)
+        if approval is None:
+            if draft.status != "draft":
+                raise TicketApprovalMappingMissingError(draft_id)
+            return DraftApprovalView(
+                draft=draft,
+                approval=None,
+                waiting_for_decision=False,
+                checkpoint_next=[],
+            )
+
+        view = await self.get(approval.thread_id)
+        return DraftApprovalView(
+            draft=view.draft,
+            approval=view.approval,
+            waiting_for_decision=view.waiting_for_decision,
+            checkpoint_next=view.checkpoint_next,
         )
 
     async def decide(

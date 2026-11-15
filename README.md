@@ -496,6 +496,7 @@ draft → pending_approval → rejected
 接口：
 
 - `POST /api/v1/tickets/drafts/{draft_id}/request-approval`
+- `GET /api/v1/tickets/drafts/{draft_id}/approval`
 - `GET /api/v1/agent/approvals/{thread_id}`
 - `POST /api/v1/agent/approvals/{thread_id}/decision`
 
@@ -637,6 +638,7 @@ Agent 结果还会展示：
 提交审批、批准和拒绝都会先显示确认对话框。审批操作完成后，前端会再次请求：
 
 ```text
+GET /api/v1/tickets/drafts/{draft_id}/approval
 GET /api/v1/agent/approvals/{thread_id}
 GET /api/v1/tickets/drafts/{draft_id}
 GET /api/v1/tickets/drafts
@@ -645,10 +647,29 @@ GET /api/v1/tickets/drafts
 只有重新查询到的审批状态和草稿状态一致时，页面才显示成功。409 冲突、审批流程
 不存在、网络错误和数据库错误都会显示明确中文提示。
 
-后端没有“按 draft_id 查询审批 thread_id”的接口，因此当前页面会把成功提交审批后
-返回的 `thread_id` 保存在浏览器 `localStorage` 中，仅用于本地演示和页面刷新恢复。
-如果草稿显示为 `pending_approval`，但当前浏览器没有对应 `thread_id`，页面会明确
-提示无法安全恢复，不会伪造审批能力。
+页面还会把成功提交审批后返回的 `thread_id` 保存在浏览器 `localStorage` 中，
+作为辅助缓存。页面加载草稿详情时会优先调用：
+
+```text
+GET /api/v1/tickets/drafts/{draft_id}/approval
+```
+
+后端复用 `ticket_approvals` 中的真实映射，并同时核对：
+
+- 草稿是否存在；
+- 审批映射是否存在；
+- 草稿状态和审批状态是否一致；
+- 草稿内容版本是否与审批版本一致；
+- LangGraph Checkpoint 是否真实处于 `await_decision`。
+
+未提交审批的草稿返回 `status=not_requested` 和 `approval=null`。待审批、已批准
+和已拒绝分别返回对应真实状态、`thread_id`、`waiting_for_decision` 和
+`checkpoint_next`。非 draft 草稿缺少审批映射、版本冲突或 Checkpoint 不一致时返回
+明确的 409，不会伪装成未提交审批。
+
+因此浏览器 `localStorage` 被清除后，页面仍可通过 `draft_id` 从服务端恢复审批。
+缓存中的旧 `thread_id` 也不会覆盖服务端结果；当服务端确认没有审批时，前端会清除
+对应缓存。
 
 审批期间后端禁止 PATCH 草稿，前端也会禁用编辑入口。当前仍没有正式身份认证、审批人
 角色或多租户隔离，页面明确标记为 localhost 本地演示。
@@ -760,8 +781,9 @@ cd D:\Projects\OpsPilot\frontend
 npm run test:e2e:agent:resume
 ```
 
-`prepare` 会通过真实 Agent 创建并提交一份工单；`resume` 使用同一
-`draft_id/thread_id` 恢复等待流程，在浏览器批准后再创建一份草稿并拒绝。
+`prepare` 会通过真实 Agent 创建并提交一份工单；`resume` 会先清空
+`localStorage` 中的审批映射，再仅使用 `draft_id` 通过后端恢复等待流程，在浏览器
+批准后再创建一份草稿并拒绝。
 E2E 会创建真实本地工单数据，但不包含敏感文档或密钥。
 
 截图输出到 `frontend/e2e/artifacts`，该目录不会提交到 Git。

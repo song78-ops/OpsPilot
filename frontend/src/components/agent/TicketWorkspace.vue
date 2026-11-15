@@ -374,8 +374,8 @@ function formatDate(value: string | null): string {
                 data-testid="ticket-missing-thread"
               >
                 该草稿处于 {{ statusMeta[selectedDraft.status].label }}，
-                但当前浏览器没有保存对应 thread_id。后端只提供按 thread_id
-                查询审批，因此本页不能安全恢复这个流程。
+                但服务端没有返回可用 thread_id。可能存在审批映射或 Checkpoint
+                不一致，请刷新后检查后端审批数据。
               </div>
 
               <template v-else>
@@ -458,7 +458,7 @@ function formatDate(value: string | null): string {
 
           <p class="workspace-note">
             本地演示模式：审批接口没有正式审批人身份、角色或租户校验。
-            thread_id 仅保存在当前浏览器本地，用于查询已创建的真实流程。
+            thread_id 由服务端审批映射恢复；浏览器 localStorage 仅作为辅助缓存。
           </p>
         </template>
       </section>

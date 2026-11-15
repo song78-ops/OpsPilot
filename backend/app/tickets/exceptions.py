@@ -63,6 +63,18 @@ class TicketApprovalStateConflictError(ApplicationError):
         )
 
 
+class TicketApprovalMappingMissingError(ApplicationError):
+    def __init__(self, draft_id: str) -> None:
+        super().__init__(
+            (
+                f"Ticket draft '{draft_id}' is not in draft state but has "
+                "no persisted approval mapping."
+            ),
+            code="TICKET_APPROVAL_MAPPING_MISSING",
+            status_code=409,
+        )
+
+
 class TicketDraftVersionConflictError(ApplicationError):
     def __init__(self, draft_id: str) -> None:
         super().__init__(

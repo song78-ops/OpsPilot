@@ -9,6 +9,12 @@ from app.schemas.ticket import TicketDraftResponse
 
 ApprovalStatus = Literal["pending_approval", "approved", "rejected"]
 ApprovalDecision = Literal["approve", "reject"]
+DraftApprovalStatus = Literal[
+    "not_requested",
+    "pending_approval",
+    "approved",
+    "rejected",
+]
 
 
 class ApprovalDecisionRequest(BaseModel):
@@ -39,6 +45,14 @@ class ApprovalRecordResponse(BaseModel):
 class ApprovalDetailResponse(BaseModel):
     approval: ApprovalRecordResponse
     draft: TicketDraftResponse
+    waiting_for_decision: bool
+    checkpoint_next: list[str]
+
+
+class DraftApprovalLookupResponse(BaseModel):
+    draft: TicketDraftResponse
+    approval: ApprovalRecordResponse | None
+    status: DraftApprovalStatus
     waiting_for_decision: bool
     checkpoint_next: list[str]
 

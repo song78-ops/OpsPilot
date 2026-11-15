@@ -16,7 +16,9 @@ from app.schemas.ticket import CreateTicketDraftArgs, TicketDraftUpdateRequest
 from app.tickets.exceptions import (
     ApprovalCheckpointStateError,
     TicketApprovalNotFoundError,
+    TicketApprovalMappingMissingError,
     TicketApprovalStateConflictError,
+    TicketDraftNotFoundError,
     TicketDraftStateConflictError,
     TicketDraftVersionConflictError,
     TicketPersistenceError,
@@ -185,6 +187,105 @@ async def test_waiting_approval_survives_restart_and_can_resume(
         assert decided.transition.draft.status == "approved"
     finally:
         await second.close()
+
+
+async def test_lookup_approval_by_draft_survives_restart(
+    tmp_path: Path,
+) -> None:
+    first = await make_harness(tmp_path)
+    created = await seed_draft(first, key="lookup-recovery")
+    before = await first.runtime.service.get_by_draft(created.draft.id)
+    assert before.approval is None
+    assert before.draft.status == "draft"
+    waiting = await first.runtime.service.request(created.draft.id)
+    thread_id = waiting.approval.thread_id
+    await first.close()
+
+    second = await make_harness(tmp_path)
+    try:
+        restored = await second.runtime.service.get_by_draft(created.draft.id)
+        assert restored.approval is not None
+        assert restored.approval.thread_id == thread_id
+        assert restored.approval.status == "pending_approval"
+        assert restored.waiting_for_decision is True
+        assert restored.checkpoint_next == ["await_decision"]
+
+        await second.runtime.service.decide(
+            thread_id,
+            ApprovalDecisionRequest(decision="approve"),
+        )
+        completed = await second.runtime.service.get_by_draft(created.draft.id)
+        assert completed.approval is not None
+        assert completed.approval.status == "approved"
+        assert completed.draft.status == "approved"
+        assert completed.waiting_for_decision is False
+        assert completed.checkpoint_next == []
+    finally:
+        await second.close()
+
+
+async def test_lookup_by_draft_distinguishes_not_requested_invalid_and_inconsistent(
+    tmp_path: Path,
+) -> None:
+    harness = await make_harness(tmp_path)
+    try:
+        draft = await seed_draft(harness, key="lookup-states")
+        not_requested = await harness.runtime.service.get_by_draft(draft.draft.id)
+        assert not_requested.approval is None
+        assert not_requested.waiting_for_decision is False
+
+        with pytest.raises(TicketDraftNotFoundError):
+            await harness.runtime.service.get_by_draft("f" * 32)
+
+        with sqlite3.connect(harness.database_path) as connection:
+            connection.execute(
+                "UPDATE ticket_drafts SET status = 'pending_approval' "
+                "WHERE id = ?",
+                (draft.draft.id,),
+            )
+            connection.commit()
+        with pytest.raises(TicketApprovalMappingMissingError):
+            await harness.runtime.service.get_by_draft(draft.draft.id)
+    finally:
+        await harness.close()
+
+
+async def test_lookup_by_draft_detects_status_and_version_mismatch(
+    tmp_path: Path,
+) -> None:
+    harness = await make_harness(tmp_path)
+    try:
+        status_draft = await seed_draft(
+            harness,
+            key="lookup-status-mismatch",
+            title="状态冲突",
+        )
+        await harness.runtime.service.request(status_draft.draft.id)
+        with sqlite3.connect(harness.database_path) as connection:
+            connection.execute(
+                "UPDATE ticket_drafts SET status = 'approved' WHERE id = ?",
+                (status_draft.draft.id,),
+            )
+            connection.commit()
+        with pytest.raises(ApprovalCheckpointStateError):
+            await harness.runtime.service.get_by_draft(status_draft.draft.id)
+
+        version_draft = await seed_draft(
+            harness,
+            key="lookup-version-mismatch",
+            title="版本冲突",
+        )
+        await harness.runtime.service.request(version_draft.draft.id)
+        with sqlite3.connect(harness.database_path) as connection:
+            connection.execute(
+                "UPDATE ticket_drafts SET version = version + 1 WHERE id = ?",
+                (version_draft.draft.id,),
+            )
+            connection.commit()
+        with pytest.raises(TicketDraftVersionConflictError):
+            await harness.runtime.service.get_by_draft(version_draft.draft.id)
+    finally:
+        await harness.close()
 
 
 async def test_duplicate_and_concurrent_decisions_only_apply_once(
@@ -518,5 +619,60 @@ async def test_approval_api_request_get_and_decision(
             repeated.json()["error"]["code"]
             == "TICKET_APPROVAL_STATE_CONFLICT"
         )
+    finally:
+        await harness.close()
+
+
+async def test_draft_approval_lookup_api_recovers_without_local_mapping(
+    client: httpx.AsyncClient,
+    tmp_path: Path,
+) -> None:
+    harness = await make_harness(tmp_path)
+    app.dependency_overrides[get_approval_service] = (
+        lambda: harness.runtime.service
+    )
+    try:
+        created = await seed_draft(harness, key="lookup-api")
+        before = await client.get(
+            f"/api/v1/tickets/drafts/{created.draft.id}/approval"
+        )
+        assert before.status_code == 200
+        assert before.json()["status"] == "not_requested"
+        assert before.json()["approval"] is None
+
+        requested = await client.post(
+            f"/api/v1/tickets/drafts/{created.draft.id}/request-approval"
+        )
+        assert requested.status_code == 202
+        thread_id = requested.json()["approval"]["thread_id"]
+
+        pending = await client.get(
+            f"/api/v1/tickets/drafts/{created.draft.id}/approval"
+        )
+        assert pending.status_code == 200
+        assert pending.json()["status"] == "pending_approval"
+        assert pending.json()["approval"]["thread_id"] == thread_id
+        assert pending.json()["waiting_for_decision"] is True
+        assert pending.json()["checkpoint_next"] == ["await_decision"]
+
+        decision = await client.post(
+            f"/api/v1/agent/approvals/{thread_id}/decision",
+            json={"decision": "reject", "note": "按草稿查询恢复后拒绝"},
+        )
+        assert decision.status_code == 200
+
+        completed = await client.get(
+            f"/api/v1/tickets/drafts/{created.draft.id}/approval"
+        )
+        assert completed.status_code == 200
+        assert completed.json()["status"] == "rejected"
+        assert completed.json()["draft"]["status"] == "rejected"
+        assert completed.json()["waiting_for_decision"] is False
+
+        missing = await client.get(
+            f"/api/v1/tickets/drafts/{'f' * 32}/approval"
+        )
+        assert missing.status_code == 404
+        assert missing.json()["error"]["code"] == "TICKET_DRAFT_NOT_FOUND"
     finally:
         await harness.close()

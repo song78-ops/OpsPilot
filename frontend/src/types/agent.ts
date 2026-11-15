@@ -19,6 +19,11 @@ export type TicketDraftStatus =
   | 'rejected'
 
 export type ApprovalStatus = 'pending_approval' | 'approved' | 'rejected'
+export type DraftApprovalStatus =
+  | 'not_requested'
+  | 'pending_approval'
+  | 'approved'
+  | 'rejected'
 export type ApprovalDecision = 'approve' | 'reject'
 
 export interface TicketDraft {
@@ -89,6 +94,14 @@ export interface ApprovalRecord {
 export interface ApprovalDetailResponse {
   approval: ApprovalRecord
   draft: TicketDraft
+  waiting_for_decision: boolean
+  checkpoint_next: string[]
+}
+
+export interface DraftApprovalLookupResponse {
+  draft: TicketDraft
+  approval: ApprovalRecord | null
+  status: DraftApprovalStatus
   waiting_for_decision: boolean
   checkpoint_next: string[]
 }

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   AgentApiError,
   decideTicketApproval,
-  getTicketApproval,
+  getTicketApprovalByDraft,
   getTicketDraft,
   listTicketDrafts,
   requestTicketApproval,
@@ -12,6 +12,7 @@ import {
 import type {
   ApprovalDecisionResponse,
   ApprovalDetailResponse,
+  DraftApprovalLookupResponse,
   TicketDraft,
 } from '../types/agent'
 import { useTicketWorkspace } from './useTicketWorkspace'
@@ -21,7 +22,7 @@ vi.mock('../api/agent', () => ({
   getTicketDraft: vi.fn(),
   updateTicketDraft: vi.fn(),
   requestTicketApproval: vi.fn(),
-  getTicketApproval: vi.fn(),
+  getTicketApprovalByDraft: vi.fn(),
   decideTicketApproval: vi.fn(),
   AgentApiError: class extends Error {
     constructor(
@@ -99,11 +100,35 @@ function finalApproval(
   }
 }
 
+function lookupFromDetail(
+  detail: ApprovalDetailResponse,
+): DraftApprovalLookupResponse {
+  return {
+    draft: detail.draft,
+    approval: detail.approval,
+    status: detail.approval.status,
+    waiting_for_decision: detail.waiting_for_decision,
+    checkpoint_next: detail.checkpoint_next,
+  }
+}
+
+function notRequestedLookup(): DraftApprovalLookupResponse {
+  return {
+    draft,
+    approval: null,
+    status: 'not_requested',
+    waiting_for_decision: false,
+    checkpoint_next: [],
+  }
+}
+
 async function preparePendingWorkspace() {
   vi.mocked(listTicketDrafts)
     .mockResolvedValueOnce({ items: [draft], total: 1 })
     .mockResolvedValueOnce({ items: [pendingDraft], total: 1 })
-  vi.mocked(getTicketDraft).mockResolvedValueOnce(draft)
+  vi.mocked(getTicketApprovalByDraft).mockResolvedValueOnce(
+    notRequestedLookup(),
+  )
   vi.mocked(requestTicketApproval).mockResolvedValue(approvalDetail)
   const workspace = useTicketWorkspace()
   await workspace.refreshDrafts()
@@ -120,7 +145,9 @@ afterEach(() => {
 describe('useTicketWorkspace', () => {
   it('loads a real draft list and selected detail', async () => {
     vi.mocked(listTicketDrafts).mockResolvedValue({ items: [draft], total: 1 })
-    vi.mocked(getTicketDraft).mockResolvedValue(draft)
+    vi.mocked(getTicketApprovalByDraft).mockResolvedValue(
+      notRequestedLookup(),
+    )
     const workspace = useTicketWorkspace()
 
     await workspace.refreshDrafts()
@@ -129,6 +156,7 @@ describe('useTicketWorkspace', () => {
     expect(workspace.drafts.value[0].id).toBe(draft.id)
     expect(workspace.selectedDraft.value?.title).toBe(draft.title)
     expect(workspace.canEdit.value).toBe(true)
+    expect(getTicketApprovalByDraft).toHaveBeenCalledWith(draft.id)
   })
 
   it('updates a draft then re-reads the persisted version', async () => {
@@ -141,9 +169,10 @@ describe('useTicketWorkspace', () => {
     vi.mocked(listTicketDrafts)
       .mockResolvedValueOnce({ items: [draft], total: 1 })
       .mockResolvedValueOnce({ items: [updated], total: 1 })
-    vi.mocked(getTicketDraft)
-      .mockResolvedValueOnce(draft)
-      .mockResolvedValueOnce(updated)
+    vi.mocked(getTicketApprovalByDraft).mockResolvedValue(
+      notRequestedLookup(),
+    )
+    vi.mocked(getTicketDraft).mockResolvedValueOnce(updated)
     vi.mocked(updateTicketDraft).mockResolvedValue(updated)
     const workspace = useTicketWorkspace()
     await workspace.refreshDrafts()
@@ -158,7 +187,7 @@ describe('useTicketWorkspace', () => {
     expect(updateTicketDraft).toHaveBeenCalledWith(draft.id, {
       description: '已确认网线正常。',
     })
-    expect(getTicketDraft).toHaveBeenCalledTimes(2)
+    expect(getTicketDraft).toHaveBeenCalledTimes(1)
   })
 
   it('requests approval and stores the returned thread id in local state', async () => {
@@ -174,8 +203,8 @@ describe('useTicketWorkspace', () => {
     'refreshes both approval and draft state after %s',
     async (decision) => {
       const workspace = await preparePendingWorkspace()
-      vi.mocked(getTicketApproval).mockResolvedValue(
-        finalApproval(decision),
+      vi.mocked(getTicketApprovalByDraft).mockResolvedValue(
+        lookupFromDetail(finalApproval(decision)),
       )
       vi.mocked(getTicketDraft).mockResolvedValue(
         finalApproval(decision).draft,
@@ -194,7 +223,7 @@ describe('useTicketWorkspace', () => {
       expect(result?.draft.status).toBe(expected)
       expect(workspace.selectedDraft.value?.status).toBe(expected)
       expect(workspace.notice.value).toContain('重新确认')
-      expect(getTicketApproval).toHaveBeenCalled()
+      expect(getTicketApprovalByDraft).toHaveBeenCalledWith(draft.id)
       expect(getTicketDraft).toHaveBeenCalled()
     },
   )
@@ -216,11 +245,11 @@ describe('useTicketWorkspace', () => {
     expect(workspace.selectedDraft.value?.status).toBe('pending_approval')
   })
 
-  it('clears a stale local thread id when the backend approval is missing', async () => {
+  it('ignores stale local cache and adopts the server thread id', async () => {
     const storage = new Map<string, string>()
     storage.set(
       'opspilot.approval.threads.v1',
-      JSON.stringify({ [draft.id]: approvalDetail.approval.thread_id }),
+      JSON.stringify({ [draft.id]: 'f'.repeat(32) }),
     )
     vi.stubGlobal('localStorage', {
       getItem: (key: string) => storage.get(key) ?? null,
@@ -230,22 +259,46 @@ describe('useTicketWorkspace', () => {
       items: [pendingDraft],
       total: 1,
     })
-    vi.mocked(getTicketDraft).mockResolvedValue(pendingDraft)
-    vi.mocked(getTicketApproval).mockRejectedValue(
-      new AgentApiError(
-        '审批流程不存在，或本地记录的流程 ID 已失效。',
-        404,
-        'TICKET_APPROVAL_NOT_FOUND',
-      ),
+    vi.mocked(getTicketApprovalByDraft).mockResolvedValue(
+      lookupFromDetail(approvalDetail),
     )
     const workspace = useTicketWorkspace()
     await workspace.refreshDrafts()
 
     await workspace.selectDraft(draft.id)
 
-    expect(workspace.selectedThreadId.value).toBeNull()
-    expect(workspace.approval.value).toBeNull()
-    expect(workspace.error.value).toContain('流程 ID 已失效')
+    expect(workspace.selectedThreadId.value).toBe(
+      approvalDetail.approval.thread_id,
+    )
+    expect(workspace.approval.value?.waiting_for_decision).toBe(true)
+    expect(workspace.error.value).toBe('')
+  })
+
+  it('recovers a pending approval with cleared browser storage', async () => {
+    const storage = new Map<string, string>()
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+    })
+    vi.mocked(listTicketDrafts).mockResolvedValue({
+      items: [pendingDraft],
+      total: 1,
+    })
+    vi.mocked(getTicketApprovalByDraft).mockResolvedValue(
+      lookupFromDetail(approvalDetail),
+    )
+    const workspace = useTicketWorkspace()
+    await workspace.refreshDrafts()
+
+    await workspace.selectDraft(draft.id)
+
+    expect(workspace.selectedDraft.value?.status).toBe('pending_approval')
+    expect(workspace.selectedThreadId.value).toBe(
+      approvalDetail.approval.thread_id,
+    )
+    expect(storage.get('opspilot.approval.threads.v1')).toContain(
+      approvalDetail.approval.thread_id,
+    )
   })
 
   it('rejects a decision when refresh returns an inconsistent status', async () => {
@@ -253,7 +306,9 @@ describe('useTicketWorkspace', () => {
     vi.mocked(decideTicketApproval).mockResolvedValue(
       decisionResponse('approve'),
     )
-    vi.mocked(getTicketApproval).mockResolvedValue(approvalDetail)
+    vi.mocked(getTicketApprovalByDraft).mockResolvedValue(
+      lookupFromDetail(approvalDetail),
+    )
     vi.mocked(getTicketDraft).mockResolvedValue(pendingDraft)
 
     const result = await workspace.decideSelected('approve')
@@ -271,7 +326,9 @@ describe('useTicketWorkspace', () => {
         resolveDecision = resolve
       }),
     )
-    vi.mocked(getTicketApproval).mockResolvedValue(finalApproval('approve'))
+    vi.mocked(getTicketApprovalByDraft).mockResolvedValue(
+      lookupFromDetail(finalApproval('approve')),
+    )
     vi.mocked(getTicketDraft).mockResolvedValue(finalApproval('approve').draft)
     vi.mocked(listTicketDrafts).mockResolvedValue({
       items: [finalApproval('approve').draft],

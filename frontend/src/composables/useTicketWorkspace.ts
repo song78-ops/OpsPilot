@@ -3,7 +3,7 @@ import { computed, reactive, readonly, ref } from 'vue'
 import {
   AgentApiError,
   decideTicketApproval,
-  getTicketApproval,
+  getTicketApprovalByDraft,
   getTicketDraft,
   listTicketDrafts,
   requestTicketApproval,
@@ -12,6 +12,7 @@ import {
 import type {
   ApprovalDecision,
   ApprovalDetailResponse,
+  DraftApprovalLookupResponse,
   TicketDraft,
   TicketDraftUpdateRequest,
 } from '../types/agent'
@@ -95,6 +96,25 @@ export function useTicketWorkspace() {
     selectedDraft.value = response.draft
   }
 
+  function applyDraftApproval(
+    response: DraftApprovalLookupResponse,
+  ): ApprovalDetailResponse | null {
+    selectedDraft.value = response.draft
+    if (response.approval === null) {
+      removeThreadId(response.draft.id)
+      approval.value = null
+      return null
+    }
+    const detail: ApprovalDetailResponse = {
+      approval: response.approval,
+      draft: response.draft,
+      waiting_for_decision: response.waiting_for_decision,
+      checkpoint_next: response.checkpoint_next,
+    }
+    applyApproval(detail)
+    return detail
+  }
+
   async function refreshDrafts() {
     if (isLoading.value) {
       return
@@ -127,13 +147,8 @@ export function useTicketWorkspace() {
     error.value = ''
     approval.value = null
     try {
-      const draft = await getTicketDraft(draftId)
-      selectedDraft.value = draft
-      const threadId = threadIds[draftId]
-      if (threadId && draft.status !== 'draft') {
-        const response = await getTicketApproval(threadId)
-        applyApproval(response)
-      }
+      const response = await getTicketApprovalByDraft(draftId)
+      applyDraftApproval(response)
     } catch (caught) {
       if (
         caught instanceof AgentApiError
@@ -200,17 +215,17 @@ export function useTicketWorkspace() {
   }
 
   async function refreshSelectedApproval() {
-    const threadId = selectedThreadId.value
-    if (!threadId || isBusy.value) {
+    const draft = selectedDraft.value
+    if (!draft || isBusy.value) {
       return null
     }
     isLoadingDetail.value = true
     error.value = ''
     try {
-      const response = await getTicketApproval(threadId)
-      applyApproval(response)
+      const response = await getTicketApprovalByDraft(draft.id)
+      const detail = applyDraftApproval(response)
       await refreshDrafts()
-      return response
+      return detail
     } catch (caught) {
       error.value = errorMessage(caught)
       return null
@@ -243,20 +258,23 @@ export function useTicketWorkspace() {
         decision,
         note: note?.trim() || null,
       })
-      const [refreshedApproval, refreshedDraft] = await Promise.all([
-        getTicketApproval(threadId),
+      const [refreshedLookup, refreshedDraft] = await Promise.all([
+        getTicketApprovalByDraft(draft.id),
         getTicketDraft(draft.id),
       ])
       const expectedStatus = decision === 'approve' ? 'approved' : 'rejected'
       if (
-        refreshedApproval.approval.status !== expectedStatus
+        refreshedLookup.approval?.status !== expectedStatus
+        || refreshedLookup.status !== expectedStatus
         || refreshedDraft.status !== expectedStatus
         || decisionResponse.draft.status !== expectedStatus
       ) {
         throw new Error('审批接口返回成功，但重新查询到的状态不一致。')
       }
-      applyApproval(refreshedApproval)
-      selectedDraft.value = refreshedDraft
+      const refreshedApproval = applyDraftApproval(refreshedLookup)
+      if (!refreshedApproval) {
+        throw new Error('审批状态刷新后缺少审批记录。')
+      }
       await refreshDrafts()
       notice.value = decision === 'approve'
         ? '审批已批准，后端状态和审批流程均已重新确认。'

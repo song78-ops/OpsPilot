@@ -173,16 +173,14 @@ try {
     const { context, page } = await launchPage(browser)
     await page.goto(baseUrl, { waitUntil: 'networkidle' })
     await page.evaluate(
-      ({ key, draftId, threadId }) => {
-        localStorage.setItem(key, JSON.stringify({ [draftId]: threadId }))
-      },
-      {
-        key: storageKey,
-        draftId: state.draftId,
-        threadId: state.threadId,
-      },
+      (key) => localStorage.removeItem(key),
+      storageKey,
     )
     await page.reload({ waitUntil: 'networkidle' })
+    assert.equal(
+      await page.evaluate((key) => localStorage.getItem(key), storageKey),
+      null,
+    )
     await page.getByTestId('nav-agent').click()
     await page.getByRole('heading', {
       name: 'Agent 智能助手',
@@ -191,6 +189,14 @@ try {
     await openDraft(page, state.draftId)
 
     await page.getByTestId('ticket-status').getByText('等待审批').waitFor()
+    const recoveredCache = await page.evaluate(
+      (key) => localStorage.getItem(key),
+      storageKey,
+    )
+    assert.equal(
+      JSON.parse(recoveredCache ?? '{}')[state.draftId],
+      state.threadId,
+    )
     await page.getByTestId('ticket-refresh-approval').click()
     await page.getByText('Checkpoint 下一节点：').waitFor()
     const recovered = await fetchApproval(page, state.threadId)

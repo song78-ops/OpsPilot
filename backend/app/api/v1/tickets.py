@@ -10,7 +10,12 @@ from app.api.deps import (
     require_local_approval_access,
 )
 from app.approvals.service import ApprovalView, TicketApprovalService
-from app.schemas.approval import ApprovalDetailResponse, ApprovalRecordResponse
+from app.approvals.types import TicketApprovalRecord
+from app.schemas.approval import (
+    ApprovalDetailResponse,
+    ApprovalRecordResponse,
+    DraftApprovalLookupResponse,
+)
 from app.schemas.ticket import (
     TicketDraftListResponse,
     TicketDraftResponse,
@@ -38,6 +43,20 @@ def approval_detail_response(view: ApprovalView) -> ApprovalDetailResponse:
     )
 
 
+def approval_record_response(
+    approval: TicketApprovalRecord,
+) -> ApprovalRecordResponse:
+    return ApprovalRecordResponse(
+        thread_id=approval.thread_id,
+        draft_id=approval.draft_id,
+        draft_version=approval.draft_version,
+        status=approval.status,
+        note=approval.note,
+        requested_at=approval.requested_at,
+        decided_at=approval.decided_at,
+    )
+
+
 @router.get("", response_model=TicketDraftListResponse)
 async def list_ticket_drafts(
     service: Annotated[TicketDraftService, Depends(get_ticket_service)],
@@ -52,6 +71,34 @@ async def get_ticket_draft(
     service: Annotated[TicketDraftService, Depends(get_ticket_service)],
 ) -> TicketDraftResponse:
     return await service.get(draft_id)
+
+
+@router.get(
+    "/{draft_id}/approval",
+    response_model=DraftApprovalLookupResponse,
+    dependencies=[Depends(require_local_approval_access)],
+)
+async def get_ticket_draft_approval(
+    draft_id: str,
+    service: Annotated[TicketApprovalService, Depends(get_approval_service)],
+) -> DraftApprovalLookupResponse:
+    """Resolve a real approval thread from a persisted draft ID."""
+    view = await service.get_by_draft(draft_id)
+    return DraftApprovalLookupResponse(
+        draft=view.draft,
+        approval=(
+            approval_record_response(view.approval)
+            if view.approval is not None
+            else None
+        ),
+        status=(
+            view.approval.status
+            if view.approval is not None
+            else "not_requested"
+        ),
+        waiting_for_decision=view.waiting_for_decision,
+        checkpoint_next=view.checkpoint_next,
+    )
 
 
 @router.patch("/{draft_id}", response_model=TicketDraftResponse)
