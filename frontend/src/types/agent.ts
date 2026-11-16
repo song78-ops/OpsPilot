@@ -79,6 +79,8 @@ export interface AgentRunResponse {
   tool_calls: AgentToolCall[]
   conversation_id: string | null
   memory_persisted: boolean
+  request_id?: string | null
+  idempotent_replay?: boolean
 }
 
 export type ConversationMessageRole = 'user' | 'assistant' | 'tool'

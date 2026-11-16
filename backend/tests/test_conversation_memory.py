@@ -140,6 +140,75 @@ def final_response(content: str = "已完成。") -> LLMToolResponse:
     )
 
 
+class RecoverAfterCreateLLM:
+    """Create a draft, fail once, then let the retry finish."""
+
+    def __init__(self) -> None:
+        self.tool_calls = 0
+        self.call_ids: list[str] = []
+
+    async def generate(self, *, system_prompt: str, user_message: str):
+        assert system_prompt
+        assert user_message
+        return supervisor_result("ticket_request")
+
+    async def generate_with_tools(self, *, messages, tools):
+        assert messages
+        assert tools
+        self.tool_calls += 1
+        if self.tool_calls == 2:
+            raise LLMTimeoutError()
+        if self.tool_calls in {1, 3}:
+            call_id = (
+                "call-before-crash"
+                if self.tool_calls == 1
+                else "call-after-retry"
+            )
+            self.call_ids.append(call_id)
+            return tool_response(
+                call_id=call_id,
+                name=CREATE_TICKET_DRAFT,
+                arguments={
+                    "title": "断网恢复测试",
+                    "description": "同一次 Agent 请求只创建一份草稿。",
+                    "device_or_system": "测试电脑",
+                },
+            )
+        return final_response("工单草稿已保存。")
+
+
+class BlockingTicketLLM:
+    """Hold the first tool decision so a concurrent retry can arrive."""
+
+    def __init__(self) -> None:
+        self.entered = asyncio.Event()
+        self.release = asyncio.Event()
+        self.tool_calls = 0
+
+    async def generate(self, *, system_prompt: str, user_message: str):
+        assert system_prompt
+        assert user_message
+        return supervisor_result("ticket_request")
+
+    async def generate_with_tools(self, *, messages, tools):
+        assert messages
+        assert tools
+        self.tool_calls += 1
+        if self.tool_calls == 1:
+            self.entered.set()
+            await self.release.wait()
+            return tool_response(
+                call_id="concurrent-create",
+                name=CREATE_TICKET_DRAFT,
+                arguments={
+                    "title": "并发重试测试",
+                    "description": "同一请求键的并发重试只执行一次。",
+                    "device_or_system": "测试服务器",
+                },
+            )
+        return final_response("工单草稿已保存。")
+
+
 async def test_two_turn_ticket_update_and_persistent_history(
     tmp_path: Path,
 ) -> None:
@@ -695,6 +764,173 @@ async def test_tool_idempotency_is_scoped_per_conversation(
         await harness.close()
 
 
+async def test_request_idempotency_replays_without_repeating_side_effects(
+    tmp_path: Path,
+) -> None:
+    harness = await make_harness(tmp_path)
+    llm = FakeLLM(
+        results=[supervisor_result("ticket_request")],
+        tool_results=[
+            tool_response(
+                call_id="call-request-first",
+                name=CREATE_TICKET_DRAFT,
+                arguments={
+                    "title": "请求级幂等测试",
+                    "description": "模型重试时即使 call id 改变也不能重复创建。",
+                    "device_or_system": "测试终端",
+                },
+            ),
+            final_response("工单草稿已保存。"),
+        ],
+    )
+    service = make_agent(harness, llm)
+    try:
+        first = await service.run(
+            message="创建一个请求级幂等测试工单。",
+            conversation_id=None,
+            idempotency_key="request-retry-1",
+        )
+        generate_calls = llm.generate_calls
+        replay = await service.run(
+            message="创建一个请求级幂等测试工单。",
+            conversation_id=first.conversation_id,
+            idempotency_key="request-retry-1",
+        )
+
+        assert first.ticket_draft is not None
+        assert replay.ticket_draft is not None
+        assert replay.ticket_draft.id == first.ticket_draft.id
+        assert replay.idempotent_replay is True
+        assert replay.request_id == first.request_id
+        assert llm.generate_calls == generate_calls
+        assert len(await harness.ticket_service.list()) == 1
+        history = await harness.memory.get_history(
+            first.conversation_id,
+            limit=20,
+        )
+        assert history.total == 3
+
+        with pytest.raises(Exception) as caught:
+            await service.run(
+                message="同一个幂等键发出的不同请求。",
+                conversation_id=first.conversation_id,
+                idempotency_key="request-retry-1",
+            )
+        assert getattr(caught.value, "code", "") == (
+            "AGENT_IDEMPOTENCY_KEY_REUSED"
+        )
+    finally:
+        await harness.close()
+
+
+async def test_agent_request_recovers_after_post_tool_failure_without_duplicate(
+    tmp_path: Path,
+) -> None:
+    harness = await make_harness(tmp_path)
+    llm = RecoverAfterCreateLLM()
+    service = make_agent(harness, llm)  # type: ignore[arg-type]
+    try:
+        with pytest.raises(LLMTimeoutError):
+            await service.run(
+                message="创建断网恢复测试工单。",
+                conversation_id=None,
+                idempotency_key="request-recovery-1",
+            )
+
+        first_drafts = await harness.ticket_service.list()
+        assert len(first_drafts) == 1
+
+        recovered = await service.run(
+            message="创建断网恢复测试工单。",
+            conversation_id=None,
+            idempotency_key="request-recovery-1",
+        )
+
+        assert recovered.ticket_draft is not None
+        assert recovered.ticket_draft.id == first_drafts[0].id
+        assert recovered.idempotent_replay is False
+        assert len(await harness.ticket_service.list()) == 1
+        assert llm.call_ids == ["call-before-crash", "call-after-retry"]
+    finally:
+        await harness.close()
+
+
+async def test_concurrent_retries_wait_for_one_completed_request(
+    tmp_path: Path,
+) -> None:
+    harness = await make_harness(tmp_path)
+    llm = BlockingTicketLLM()
+    service = make_agent(harness, llm)  # type: ignore[arg-type]
+    try:
+        first_task = asyncio.create_task(
+            service.run(
+                message="创建并发重试测试工单。",
+                conversation_id=None,
+                idempotency_key="request-concurrent-1",
+            )
+        )
+        await llm.entered.wait()
+        retry_task = asyncio.create_task(
+            service.run(
+                message="创建并发重试测试工单。",
+                conversation_id=None,
+                idempotency_key="request-concurrent-1",
+            )
+        )
+        await asyncio.sleep(0)
+        assert retry_task.done() is False
+
+        llm.release.set()
+        first, retry = await asyncio.gather(first_task, retry_task)
+
+        assert retry.idempotent_replay is True
+        assert retry.ticket_draft is not None
+        assert first.ticket_draft is not None
+        assert retry.ticket_draft.id == first.ticket_draft.id
+        assert llm.tool_calls == 2
+        assert len(await harness.ticket_service.list()) == 1
+    finally:
+        await harness.close()
+
+
+async def test_tool_create_deduplicates_by_request_key_across_call_ids(
+    tmp_path: Path,
+) -> None:
+    harness = await make_harness(tmp_path)
+    arguments = {
+        "title": "下层请求键测试",
+        "description": "不同 tool call id 仍属于同一次请求。",
+        "device_or_system": "测试工位",
+    }
+    try:
+        first = await harness.tool_executor.execute(
+            LLMToolCall(
+                id="first-tool-call",
+                name=CREATE_TICKET_DRAFT,
+                arguments=json.dumps(arguments, ensure_ascii=False),
+            ),
+            conversation_id="a" * 32,
+            request_idempotency_key="r" * 64,
+        )
+        replay = await harness.tool_executor.execute(
+            LLMToolCall(
+                id="different-tool-call",
+                name=CREATE_TICKET_DRAFT,
+                arguments=json.dumps(arguments, ensure_ascii=False),
+            ),
+            conversation_id="a" * 32,
+            request_idempotency_key="r" * 64,
+        )
+
+        assert first.draft is not None
+        assert replay.draft is not None
+        assert first.draft.id == replay.draft.id
+        assert replay.created is False
+        assert len(await harness.ticket_service.list()) == 1
+    finally:
+        await harness.close()
+
+
 async def test_conversation_api_returns_persisted_history(
     client: httpx.AsyncClient,
     tmp_path: Path,
@@ -740,6 +976,44 @@ async def test_conversation_api_returns_persisted_history(
         )
         assert missing.status_code == 404
         assert missing.json()["error"]["code"] == "CONVERSATION_NOT_FOUND"
+    finally:
+        await harness.close()
+
+
+async def test_agent_api_replays_idempotent_request(
+    client: httpx.AsyncClient,
+    tmp_path: Path,
+) -> None:
+    harness = await make_harness(tmp_path)
+    service = make_agent(
+        harness,
+        FakeLLM(result=supervisor_result("general_chat")),
+    )
+    app.dependency_overrides[get_agent_service] = lambda: service
+    app.dependency_overrides[get_conversation_memory_service] = (
+        lambda: harness.memory
+    )
+    try:
+        payload = {"message": "你好", "conversation_id": None}
+        first = await client.post(
+            "/api/v1/agent/run",
+            json=payload,
+            headers={"Idempotency-Key": "api-retry-1"},
+        )
+        replay = await client.post(
+            "/api/v1/agent/run",
+            json=payload,
+            headers={"Idempotency-Key": "api-retry-1"},
+        )
+
+        assert first.status_code == 200
+        assert replay.status_code == 200
+        assert replay.headers["Idempotency-Replayed"] == "true"
+        assert replay.json()["idempotent_replay"] is True
+        assert replay.json()["request_id"] == first.json()["request_id"]
+        assert replay.json()["conversation_id"] == (
+            first.json()["conversation_id"]
+        )
     finally:
         await harness.close()
 

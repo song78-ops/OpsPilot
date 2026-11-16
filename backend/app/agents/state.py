@@ -39,6 +39,7 @@ class AgentToolCallRecord(TypedDict):
 class AgentState(TypedDict, total=False):
     message: str
     conversation_id: str | None
+    request_idempotency_key: str | None
     history_context: str
     ticket_context: str
     trusted_ticket_draft_ids: list[str] | None

@@ -100,6 +100,7 @@ class TicketToolExecutor:
         trusted_ticket_draft_ids: list[str] | None = None,
         ticket_target_ambiguous: bool = False,
         user_message: str = "",
+        request_idempotency_key: str | None = None,
     ) -> ToolExecutionOutcome:
         if call.name not in ALLOWED_TOOL_NAMES:
             return ToolExecutionOutcome(
@@ -120,6 +121,7 @@ class TicketToolExecutor:
                 trusted_ticket_draft_ids=trusted_ticket_draft_ids,
                 ticket_target_ambiguous=ticket_target_ambiguous,
                 user_message=user_message,
+                request_idempotency_key=request_idempotency_key,
             )
         except ValidationError as exc:
             return ToolExecutionOutcome(
@@ -179,12 +181,18 @@ class TicketToolExecutor:
         trusted_ticket_draft_ids: list[str] | None,
         ticket_target_ambiguous: bool,
         user_message: str,
+        request_idempotency_key: str | None,
     ) -> ToolExecutionOutcome:
         if call.name == CREATE_TICKET_DRAFT:
+            key_scope = (
+                f"request:{request_idempotency_key}:{call.name}"
+                if request_idempotency_key is not None
+                else f"{call.name}:{call.id}"
+            )
             idempotency_key = hashlib.sha256(
                 (
                     f"{conversation_id or 'stateless'}:"
-                    f"{call.name}:{call.id}"
+                    f"{key_scope}"
                 ).encode("utf-8")
             ).hexdigest()
             result = await self._service.create(

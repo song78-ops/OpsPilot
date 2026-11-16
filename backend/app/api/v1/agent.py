@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query, Response
 
 from app.agents.service import AgentService
 from app.api.deps import (
@@ -11,6 +11,7 @@ from app.api.deps import (
     require_local_agent_access,
 )
 from app.conversations.service import ConversationMemoryService
+from app.core.exceptions import ApplicationError
 from app.schemas.agent import AgentRunRequest, AgentRunResponse
 from app.schemas.conversation import (
     ConversationHistoryResponse,
@@ -29,13 +30,33 @@ router = APIRouter(
 @router.post("/run", response_model=AgentRunResponse)
 async def run_agent(
     payload: AgentRunRequest,
+    response: Response,
     service: Annotated[AgentService, Depends(get_agent_service)],
+    idempotency_key: Annotated[
+        str | None,
+        Header(alias="Idempotency-Key", max_length=128),
+    ] = None,
 ) -> AgentRunResponse:
     """Run one supervised LangGraph workflow."""
-    return await service.run(
+    normalized_key = (
+        idempotency_key.strip()
+        if idempotency_key is not None
+        else None
+    )
+    if idempotency_key is not None and not normalized_key:
+        raise ApplicationError(
+            "Idempotency-Key must not be blank.",
+            code="AGENT_IDEMPOTENCY_KEY_INVALID",
+            status_code=400,
+        )
+    result = await service.run(
         message=payload.message,
         conversation_id=payload.conversation_id,
+        idempotency_key=normalized_key,
     )
+    if result.idempotent_replay:
+        response.headers["Idempotency-Replayed"] = "true"
+    return result
 
 
 @router.get("/conversations", response_model=ConversationListResponse)

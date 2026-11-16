@@ -1,10 +1,14 @@
 """Application service that converts graph state into API responses."""
 
+import asyncio
+import hashlib
 import logging
 import time
+import uuid
 from typing import Any
 
 from app.agents.workflow import AgentWorkflow
+from app.conversations.exceptions import ConversationPersistenceError
 from app.conversations.service import (
     ConversationMemoryService,
     format_history,
@@ -35,12 +39,14 @@ class AgentService:
     ) -> None:
         self._workflow = workflow
         self._conversation_memory = conversation_memory
+        self._request_locks: dict[str, asyncio.Lock] = {}
 
     async def run(
         self,
         *,
         message: str,
         conversation_id: str | None,
+        idempotency_key: str | None = None,
     ) -> AgentRunResponse:
         if self._conversation_memory is None:
             started_at = time.perf_counter()
@@ -53,8 +59,79 @@ class AgentService:
                 conversation_id=conversation_id,
                 started_at=started_at,
                 memory_persisted=False,
+                request_id=uuid.uuid4().hex,
+                idempotent_replay=False,
             )
 
+        if idempotency_key is not None:
+            request_key = hashlib.sha256(
+                f"agent-run:{idempotency_key}".encode("utf-8")
+            ).hexdigest()
+            lock = self._request_locks.setdefault(
+                request_key,
+                asyncio.Lock(),
+            )
+            async with lock:
+                return await self._run_idempotent(
+                    message=message,
+                    conversation_id=conversation_id,
+                    request_key=request_key,
+                )
+
+        conversation = await self._conversation_memory.begin_or_resume(
+            conversation_id
+        )
+        return await self._run_with_memory(
+            message=message,
+            conversation_id=conversation.id,
+            request_key=None,
+        )
+
+    async def _run_idempotent(
+        self,
+        *,
+        message: str,
+        conversation_id: str | None,
+        request_key: str,
+    ) -> AgentRunResponse:
+        if self._conversation_memory is None:
+            raise RuntimeError("Conversation memory is not configured")
+        record = await self._conversation_memory.claim_request(
+            message=message,
+            request_key=request_key,
+        )
+        if record.status == "completed":
+            if record.response_json is None:
+                raise ConversationPersistenceError()
+            response = AgentRunResponse.model_validate_json(
+                record.response_json
+            )
+            return response.model_copy(
+                update={"idempotent_replay": True}
+            )
+
+        conversation = await self._conversation_memory.begin_or_resume(
+            record.conversation_id or conversation_id
+        )
+        await self._conversation_memory.bind_request_conversation(
+            request_key=record.request_key,
+            conversation_id=conversation.id,
+        )
+        return await self._run_with_memory(
+            message=message,
+            conversation_id=conversation.id,
+            request_key=record.request_key,
+        )
+
+    async def _run_with_memory(
+        self,
+        *,
+        message: str,
+        conversation_id: str,
+        request_key: str | None,
+    ) -> AgentRunResponse:
+        if self._conversation_memory is None:
+            raise RuntimeError("Conversation memory is not configured")
         conversation = await self._conversation_memory.begin_or_resume(
             conversation_id
         )
@@ -78,8 +155,21 @@ class AgentService:
                     last_ticket_draft_id=(
                         context.conversation.last_ticket_draft_id
                     ),
+                    request_idempotency_key=request_key,
                 )
             except ApplicationError as exc:
+                if request_key is not None:
+                    try:
+                        await self._conversation_memory.fail_request(
+                            request_key=request_key,
+                            error_code=exc.code,
+                        )
+                    except ApplicationError:
+                        logger.exception(
+                            "Failed to persist Agent request failure "
+                            "request_key=%s",
+                            request_key,
+                        )
                 try:
                     await self._conversation_memory.record_failure(
                         conversation_id=conversation.id,
@@ -91,6 +181,20 @@ class AgentService:
                         "Failed to persist Agent failure conversation_id=%s",
                         conversation.id,
                     )
+                raise
+            except Exception:
+                if request_key is not None:
+                    try:
+                        await self._conversation_memory.fail_request(
+                            request_key=request_key,
+                            error_code="AGENT_NODE_ERROR",
+                        )
+                    except ApplicationError:
+                        logger.exception(
+                            "Failed to persist unexpected Agent failure "
+                            "request_key=%s",
+                            request_key,
+                        )
                 raise
 
             tool_results = self._tool_result_records(state)
@@ -104,24 +208,41 @@ class AgentService:
                 if successful_drafts
                 else context.conversation.last_ticket_draft_id
             )
-            await self._conversation_memory.record_turn(
-                conversation_id=conversation.id,
-                user_content=message,
-                assistant_content=(
-                    state.get("answer")
-                    or self._fallback_assistant_content(state)
-                ),
-                intent=state.get("intent"),
-                status=state.get("status"),
-                tool_results=tool_results,
-                last_ticket_draft_id=last_ticket_draft_id,
-            )
-            return self._response(
+            response = self._response(
                 state,
                 conversation_id=conversation.id,
                 started_at=started_at,
                 memory_persisted=True,
+                request_id=(request_key or uuid.uuid4().hex)[:32],
+                idempotent_replay=False,
             )
+            assistant_content = (
+                state.get("answer")
+                or self._fallback_assistant_content(state)
+            )
+            if request_key is None:
+                await self._conversation_memory.record_turn(
+                    conversation_id=conversation.id,
+                    user_content=message,
+                    assistant_content=assistant_content,
+                    intent=state.get("intent"),
+                    status=state.get("status"),
+                    tool_results=tool_results,
+                    last_ticket_draft_id=last_ticket_draft_id,
+                )
+            else:
+                await self._conversation_memory.complete_request_turn(
+                    request_key=request_key,
+                    response_json=response.model_dump_json(),
+                    conversation_id=conversation.id,
+                    user_content=message,
+                    assistant_content=assistant_content,
+                    intent=state.get("intent"),
+                    status=state.get("status"),
+                    tool_results=tool_results,
+                    last_ticket_draft_id=last_ticket_draft_id,
+                )
+            return response
 
     def _response(
         self,
@@ -130,6 +251,8 @@ class AgentService:
         conversation_id: str | None,
         started_at: float,
         memory_persisted: bool,
+        request_id: str,
+        idempotent_replay: bool,
     ) -> AgentRunResponse:
         latency_ms = (time.perf_counter() - started_at) * 1000
         usage_parts = state.get("usage_parts", [])
@@ -175,6 +298,8 @@ class AgentService:
             tool_calls=tool_calls,
             conversation_id=conversation_id,
             memory_persisted=memory_persisted,
+            request_id=request_id,
+            idempotent_replay=idempotent_replay,
         )
         logger.info(
             "Agent run completed intent=%s status=%s nodes=%s latency_ms=%.2f",

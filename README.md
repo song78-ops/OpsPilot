@@ -452,6 +452,24 @@ Supervisor 使用 DeepSeek 结构化 JSON 输出判断意图，不使用关键�
 }
 ```
 
+创建工单等有副作用的请求应携带 `Idempotency-Key` 请求头。键长度为 1 到 128 个
+字符，并在客户端网络重试期间保持不变：
+
+```http
+Idempotency-Key: 390d5b32-7a40-4b37-9a78-a3bdc0532eb4
+```
+
+首次成功执行后，响应与本次会话轮次会在 `conversations.db` 中原子提交。相同键和
+相同消息的重试直接返回第一次结果，并增加响应头
+`Idempotency-Replayed: true`；不会再次调用模型、工具或写入会话消息。相同键被
+用于不同消息时返回 `409 AGENT_IDEMPOTENCY_KEY_REUSED`。未携带该头时仍保持原有
+行为，以兼容已有客户端。
+
+如果进程在工单写入后、请求结果提交前异常退出，重试会恢复原
+`conversation_id`，并使用请求级幂等键执行工单创建工具。即使模型生成了新的
+`tool_call_id`，也只会返回第一次创建的草稿。响应中的 `request_id` 可用于日志
+关联，`idempotent_replay` 标识本次响应是否为缓存重放。
+
 响应包含：
 
 - `intent`
@@ -467,6 +485,8 @@ Supervisor 使用 DeepSeek 结构化 JSON 输出判断意图，不使用关键�
 - `tool_calls` 安全审计摘要
 - `conversation_id`
 - `memory_persisted=true`
+- `request_id`
+- `idempotent_replay`
 
 节点复用：
 

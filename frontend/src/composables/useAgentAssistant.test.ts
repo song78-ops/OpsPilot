@@ -169,7 +169,11 @@ describe('useAgentAssistant', () => {
       expect(assistant.latestResult.value?.status).toBe(status)
       expect(assistant.currentConversationId.value).toBe(firstConversationId)
       expect(assistant.messages.value).toHaveLength(2)
-      expect(runAgent).toHaveBeenCalledWith('测试请求', null)
+      expect(runAgent).toHaveBeenCalledWith(
+        '测试请求',
+        null,
+        expect.any(String),
+      )
       expect(assistant.question.value).toBe('')
     },
   )
@@ -195,8 +199,8 @@ describe('useAgentAssistant', () => {
     await assistant.send()
 
     expect(vi.mocked(runAgent).mock.calls).toEqual([
-      ['你好', null],
-      ['继续', firstConversationId],
+      ['你好', null, expect.any(String)],
+      ['继续', firstConversationId, expect.any(String)],
     ])
   })
 
@@ -333,6 +337,32 @@ describe('useAgentAssistant', () => {
     expect(assistant.error.value).toContain('网络中断')
     expect(assistant.messages.value).toEqual([])
     expect(assistant.question.value).toBe('创建工单')
+  })
+
+  it('reuses the idempotency key when retrying the same failed message', async () => {
+    vi.mocked(runAgent)
+      .mockRejectedValueOnce(
+        new AgentApiError('网络中断', 0, 'NETWORK_ERROR'),
+      )
+      .mockResolvedValueOnce(response('ticket_request', 'ticket_draft_ready'))
+    vi.mocked(getAgentConversationHistory).mockResolvedValue(
+      history(firstConversationId),
+    )
+    vi.mocked(listAgentConversations).mockResolvedValue({
+      items: [],
+      total: 0,
+      limit: 30,
+      offset: 0,
+    })
+    const assistant = useAgentAssistant()
+    assistant.question.value = '创建工单'
+
+    await assistant.send()
+    await assistant.send()
+
+    const calls = vi.mocked(runAgent).mock.calls
+    expect(calls).toHaveLength(2)
+    expect(calls[0][2]).toBe(calls[1][2])
   })
 
   it('stores only the conversation id, never message content', async () => {

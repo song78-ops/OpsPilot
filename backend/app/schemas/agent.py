@@ -46,4 +46,6 @@ class AgentRunResponse(BaseModel):
     tool_calls: list[AgentToolCallResponse]
     conversation_id: str | None
     memory_persisted: bool = False
+    request_id: str | None = None
+    idempotent_replay: bool = False
 

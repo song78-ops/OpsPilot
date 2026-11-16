@@ -15,6 +15,22 @@ import type {
 
 const LAST_CONVERSATION_KEY = 'opspilot.agent.lastConversationId'
 
+interface PendingAgentRequest {
+  message: string
+  conversationId: string | null
+  idempotencyKey: string
+}
+
+function createIdempotencyKey(): string {
+  if (
+    typeof globalThis.crypto !== 'undefined'
+    && typeof globalThis.crypto.randomUUID === 'function'
+  ) {
+    return globalThis.crypto.randomUUID()
+  }
+  return `agent-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
 function errorMessage(error: unknown): string {
   if (error instanceof AgentApiError) {
     return error.message
@@ -53,6 +69,7 @@ export function useAgentAssistant() {
   const isLoadingHistory = ref(false)
   const error = ref('')
   const notice = ref('')
+  let pendingRequest: PendingAgentRequest | null = null
 
   const isBusy = computed(
     () => isRunning.value
@@ -157,6 +174,7 @@ export function useAgentAssistant() {
       return
     }
     question.value = ''
+    pendingRequest = null
     error.value = ''
     notice.value = ''
     const restored = await loadHistory(
@@ -177,6 +195,7 @@ export function useAgentAssistant() {
     messages.value = []
     latestResult.value = null
     question.value = ''
+    pendingRequest = null
     error.value = ''
     notice.value = '新会话将在首次发送消息时由后端创建。'
     clearLastConversationId()
@@ -189,15 +208,32 @@ export function useAgentAssistant() {
     }
 
     const requestedConversationId = currentConversationId.value
+    const idempotencyKey = (
+      pendingRequest
+      && pendingRequest.message === message
+      && pendingRequest.conversationId === requestedConversationId
+    )
+      ? pendingRequest.idempotencyKey
+      : createIdempotencyKey()
+    pendingRequest = {
+      message,
+      conversationId: requestedConversationId,
+      idempotencyKey,
+    }
     isRunning.value = true
     error.value = ''
     notice.value = ''
     try {
-      const response = await runAgent(message, requestedConversationId)
+      const response = await runAgent(
+        message,
+        requestedConversationId,
+        idempotencyKey,
+      )
       if (!response.conversation_id) {
         throw new Error('后端未返回 conversation_id。')
       }
 
+      pendingRequest = null
       currentConversationId.value = response.conversation_id
       persistLastConversationId(response.conversation_id)
       question.value = ''

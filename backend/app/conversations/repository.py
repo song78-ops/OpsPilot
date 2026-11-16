@@ -16,19 +16,22 @@ from sqlalchemy import (
     select,
 )
 from sqlalchemy.engine import make_url
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
+    AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from app.conversations.exceptions import (
+    AgentIdempotencyConflictError,
     ConversationNotFoundError,
     ConversationPersistenceError,
 )
 from app.conversations.types import (
+    AgentRequestRecord,
     ConversationMessageRecord,
     ConversationRecord,
     ConversationRole,
@@ -90,6 +93,35 @@ class ConversationMessageRow(ConversationBase):
     )
 
 
+class AgentRequestRow(ConversationBase):
+    __tablename__ = "agent_request_runs"
+
+    request_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    conversation_id: Mapped[str | None] = mapped_column(
+        String(64),
+        ForeignKey("agent_conversations.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    status: Mapped[str] = mapped_column(String(20), nullable=False)
+    response_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    attempt_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+
+
 class ConversationRepository(Protocol):
     async def create(self) -> ConversationRecord:
         ...
@@ -140,6 +172,45 @@ class ConversationRepository(Protocol):
     async def clear_last_ticket_draft_id(
         self,
         conversation_id: str,
+    ) -> None:
+        ...
+
+    async def claim_request(
+        self,
+        *,
+        request_key: str,
+        fingerprint: str,
+    ) -> AgentRequestRecord:
+        ...
+
+    async def bind_request_conversation(
+        self,
+        *,
+        request_key: str,
+        conversation_id: str,
+    ) -> None:
+        ...
+
+    async def complete_request_turn(
+        self,
+        *,
+        request_key: str,
+        response_json: str,
+        conversation_id: str,
+        user_content: str,
+        assistant_content: str,
+        intent: str | None,
+        status: str | None,
+        tool_results: list[dict[str, str | bool | None]],
+        last_ticket_draft_id: str | None,
+    ) -> None:
+        ...
+
+    async def fail_request(
+        self,
+        *,
+        request_key: str,
+        error_code: str,
     ) -> None:
         ...
 
@@ -339,65 +410,236 @@ class SQLAlchemyConversationRepository:
         try:
             async with self._session_factory() as session:
                 async with session.begin():
-                    conversation = await session.get(
-                        ConversationRow,
-                        conversation_id,
+                    await self._append_turn_rows(
+                        session,
+                        conversation_id=conversation_id,
+                        user_content=user_content,
+                        assistant_content=assistant_content,
+                        intent=intent,
+                        status=status,
+                        tool_results=tool_results,
+                        last_ticket_draft_id=last_ticket_draft_id,
+                        now=now,
                     )
-                    if conversation is None:
-                        raise ConversationNotFoundError(conversation_id)
-                    session.add(
-                        ConversationMessageRow(
-                            conversation_id=conversation_id,
-                            role="user",
-                            content=user_content,
-                            intent=intent,
-                            status=None,
-                            tool_name=None,
-                            tool_status=None,
-                            business_reference_id=None,
-                            created_at=now,
-                        )
-                    )
-                    for result in tool_results:
-                        session.add(
-                            ConversationMessageRow(
-                                conversation_id=conversation_id,
-                                role="tool",
-                                content=str(result.get("message") or ""),
-                                intent=intent,
-                                status=None,
-                                tool_name=str(result.get("name") or ""),
-                                tool_status=str(result.get("status") or ""),
-                                business_reference_id=(
-                                    str(result["draft_id"])
-                                    if result.get("draft_id")
-                                    else None
-                                ),
-                                created_at=now,
-                            )
-                        )
-                    session.add(
-                        ConversationMessageRow(
-                            conversation_id=conversation_id,
-                            role="assistant",
-                            content=assistant_content,
-                            intent=intent,
-                            status=status,
-                            tool_name=None,
-                            tool_status=None,
-                            business_reference_id=last_ticket_draft_id,
-                            created_at=now,
-                        )
-                    )
-                    conversation.updated_at = now
-                    if last_ticket_draft_id is not None:
-                        conversation.last_ticket_draft_id = (
-                            last_ticket_draft_id
-                        )
         except ConversationNotFoundError:
             raise
         except SQLAlchemyError as exc:
             raise ConversationPersistenceError() from exc
+
+    async def claim_request(
+        self,
+        *,
+        request_key: str,
+        fingerprint: str,
+    ) -> AgentRequestRecord:
+        """Reserve one durable Agent request or return its completed result."""
+        await self._ensure_schema()
+        now = datetime.now(timezone.utc)
+        try:
+            async with self._session_factory() as session:
+                async with session.begin():
+                    row = await session.get(AgentRequestRow, request_key)
+                    if row is None:
+                        row = AgentRequestRow(
+                            request_key=request_key,
+                            fingerprint=fingerprint,
+                            conversation_id=None,
+                            status="in_progress",
+                            response_json=None,
+                            error_code=None,
+                            attempt_count=1,
+                            created_at=now,
+                            updated_at=now,
+                        )
+                        session.add(row)
+                    else:
+                        if row.fingerprint != fingerprint:
+                            raise AgentIdempotencyConflictError()
+                        if row.status != "completed":
+                            row.status = "in_progress"
+                            row.error_code = None
+                            row.attempt_count += 1
+                            row.updated_at = now
+                    await session.flush()
+                    return self._request(row)
+        except AgentIdempotencyConflictError:
+            raise
+        except IntegrityError:
+            existing = await self._get_request(request_key)
+            if existing is None:
+                raise ConversationPersistenceError()
+            if existing.fingerprint != fingerprint:
+                raise AgentIdempotencyConflictError()
+            return existing
+        except SQLAlchemyError as exc:
+            raise ConversationPersistenceError() from exc
+
+    async def bind_request_conversation(
+        self,
+        *,
+        request_key: str,
+        conversation_id: str,
+    ) -> None:
+        """Persist the generated conversation ID before workflow execution."""
+        await self._ensure_schema()
+        try:
+            async with self._session_factory() as session:
+                async with session.begin():
+                    row = await session.get(AgentRequestRow, request_key)
+                    if row is None:
+                        raise ConversationPersistenceError()
+                    if row.conversation_id not in {None, conversation_id}:
+                        raise AgentIdempotencyConflictError()
+                    row.conversation_id = conversation_id
+                    row.updated_at = datetime.now(timezone.utc)
+        except (AgentIdempotencyConflictError, ConversationPersistenceError):
+            raise
+        except SQLAlchemyError as exc:
+            raise ConversationPersistenceError() from exc
+
+    async def complete_request_turn(
+        self,
+        *,
+        request_key: str,
+        response_json: str,
+        conversation_id: str,
+        user_content: str,
+        assistant_content: str,
+        intent: str | None,
+        status: str | None,
+        tool_results: list[dict[str, str | bool | None]],
+        last_ticket_draft_id: str | None,
+    ) -> None:
+        """Commit the conversation turn and replay response atomically."""
+        await self._ensure_schema()
+        now = datetime.now(timezone.utc)
+        try:
+            async with self._session_factory() as session:
+                async with session.begin():
+                    request_row = await session.get(
+                        AgentRequestRow,
+                        request_key,
+                    )
+                    if request_row is None:
+                        raise ConversationPersistenceError()
+                    if request_row.status == "completed":
+                        return
+                    if request_row.conversation_id not in {
+                        None,
+                        conversation_id,
+                    }:
+                        raise AgentIdempotencyConflictError()
+                    await self._append_turn_rows(
+                        session,
+                        conversation_id=conversation_id,
+                        user_content=user_content,
+                        assistant_content=assistant_content,
+                        intent=intent,
+                        status=status,
+                        tool_results=tool_results,
+                        last_ticket_draft_id=last_ticket_draft_id,
+                        now=now,
+                    )
+                    request_row.conversation_id = conversation_id
+                    request_row.status = "completed"
+                    request_row.response_json = response_json
+                    request_row.error_code = None
+                    request_row.updated_at = now
+        except (
+            AgentIdempotencyConflictError,
+            ConversationNotFoundError,
+            ConversationPersistenceError,
+        ):
+            raise
+        except SQLAlchemyError as exc:
+            raise ConversationPersistenceError() from exc
+
+    async def fail_request(
+        self,
+        *,
+        request_key: str,
+        error_code: str,
+    ) -> None:
+        """Record a retryable failure without caching an HTTP error response."""
+        await self._ensure_schema()
+        try:
+            async with self._session_factory() as session:
+                async with session.begin():
+                    row = await session.get(AgentRequestRow, request_key)
+                    if row is None or row.status == "completed":
+                        return
+                    row.status = "failed"
+                    row.error_code = error_code
+                    row.updated_at = datetime.now(timezone.utc)
+        except SQLAlchemyError as exc:
+            raise ConversationPersistenceError() from exc
+
+    async def _append_turn_rows(
+        self,
+        session: AsyncSession,
+        *,
+        conversation_id: str,
+        user_content: str,
+        assistant_content: str,
+        intent: str | None,
+        status: str | None,
+        tool_results: list[dict[str, str | bool | None]],
+        last_ticket_draft_id: str | None,
+        now: datetime,
+    ) -> None:
+        conversation = await session.get(
+            ConversationRow,
+            conversation_id,
+        )
+        if conversation is None:
+            raise ConversationNotFoundError(conversation_id)
+        session.add(
+            ConversationMessageRow(
+                conversation_id=conversation_id,
+                role="user",
+                content=user_content,
+                intent=intent,
+                status=None,
+                tool_name=None,
+                tool_status=None,
+                business_reference_id=None,
+                created_at=now,
+            )
+        )
+        for result in tool_results:
+            session.add(
+                ConversationMessageRow(
+                    conversation_id=conversation_id,
+                    role="tool",
+                    content=str(result.get("message") or ""),
+                    intent=intent,
+                    status=None,
+                    tool_name=str(result.get("name") or ""),
+                    tool_status=str(result.get("status") or ""),
+                    business_reference_id=(
+                        str(result["draft_id"])
+                        if result.get("draft_id")
+                        else None
+                    ),
+                    created_at=now,
+                )
+            )
+        session.add(
+            ConversationMessageRow(
+                conversation_id=conversation_id,
+                role="assistant",
+                content=assistant_content,
+                intent=intent,
+                status=status,
+                tool_name=None,
+                tool_status=None,
+                business_reference_id=last_ticket_draft_id,
+                created_at=now,
+            )
+        )
+        conversation.updated_at = now
+        if last_ticket_draft_id is not None:
+            conversation.last_ticket_draft_id = last_ticket_draft_id
 
     async def clear_last_ticket_draft_id(
         self,
@@ -454,6 +696,28 @@ class SQLAlchemyConversationRepository:
             tool_status=row.tool_status,
             business_reference_id=row.business_reference_id,
             created_at=SQLAlchemyConversationRepository._utc(row.created_at),
+        )
+
+    async def _get_request(
+        self,
+        request_key: str,
+    ) -> AgentRequestRecord | None:
+        async with self._session_factory() as session:
+            row = await session.get(AgentRequestRow, request_key)
+            return self._request(row) if row is not None else None
+
+    @staticmethod
+    def _request(row: AgentRequestRow) -> AgentRequestRecord:
+        return AgentRequestRecord(
+            request_key=row.request_key,
+            fingerprint=row.fingerprint,
+            conversation_id=row.conversation_id,
+            status=row.status,  # type: ignore[arg-type]
+            response_json=row.response_json,
+            error_code=row.error_code,
+            attempt_count=row.attempt_count,
+            created_at=SQLAlchemyConversationRepository._utc(row.created_at),
+            updated_at=SQLAlchemyConversationRepository._utc(row.updated_at),
         )
 
     @staticmethod

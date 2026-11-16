@@ -1,6 +1,8 @@
 """Conversation memory orchestration and bounded model context."""
 
 import asyncio
+import hashlib
+import json
 import logging
 import re
 from collections.abc import AsyncIterator
@@ -9,6 +11,7 @@ from contextlib import asynccontextmanager
 from app.conversations.exceptions import ConversationNotFoundError
 from app.conversations.repository import ConversationRepository
 from app.conversations.types import (
+    AgentRequestRecord,
     ConversationContext,
     ConversationHistory,
     ConversationMessageRecord,
@@ -232,6 +235,81 @@ class ConversationMemoryService:
             status="service_error",
             tool_results=[],
             last_ticket_draft_id=None,
+        )
+
+    async def claim_request(
+        self,
+        *,
+        message: str,
+        request_key: str,
+    ) -> AgentRequestRecord:
+        """Claim a request key and reject reuse for different payloads."""
+        fingerprint = hashlib.sha256(
+            json.dumps(
+                {"message": message},
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()
+        return await self._repository.claim_request(
+            request_key=request_key,
+            fingerprint=fingerprint,
+        )
+
+    async def bind_request_conversation(
+        self,
+        *,
+        request_key: str,
+        conversation_id: str,
+    ) -> None:
+        await self._repository.bind_request_conversation(
+            request_key=request_key,
+            conversation_id=conversation_id,
+        )
+
+    async def complete_request_turn(
+        self,
+        *,
+        request_key: str,
+        response_json: str,
+        conversation_id: str,
+        user_content: str,
+        assistant_content: str,
+        intent: str | None,
+        status: str | None,
+        tool_results: list[ToolResultRecord],
+        last_ticket_draft_id: str | None,
+    ) -> None:
+        await self._repository.complete_request_turn(
+            request_key=request_key,
+            response_json=response_json,
+            conversation_id=conversation_id,
+            user_content=user_content,
+            assistant_content=assistant_content,
+            intent=intent,
+            status=status,
+            tool_results=[
+                {
+                    "name": result.name,
+                    "status": result.status,
+                    "message": result.message,
+                    "draft_id": result.draft_id,
+                }
+                for result in tool_results
+            ],
+            last_ticket_draft_id=last_ticket_draft_id,
+        )
+
+    async def fail_request(
+        self,
+        *,
+        request_key: str,
+        error_code: str,
+    ) -> None:
+        await self._repository.fail_request(
+            request_key=request_key,
+            error_code=error_code,
         )
 
     async def get_history(

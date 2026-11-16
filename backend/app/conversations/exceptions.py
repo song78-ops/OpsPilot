@@ -19,3 +19,14 @@ class ConversationPersistenceError(ApplicationError):
             code="CONVERSATION_PERSISTENCE_ERROR",
             status_code=500,
         )
+
+
+class AgentIdempotencyConflictError(ApplicationError):
+    """Raised when one idempotency key is reused for different request data."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "The Idempotency-Key was already used for a different Agent request.",
+            code="AGENT_IDEMPOTENCY_KEY_REUSED",
+            status_code=409,
+        )

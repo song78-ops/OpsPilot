@@ -420,6 +420,9 @@ class AgentNodes:
                     False,
                 ),
                 user_message=state["message"],
+                request_idempotency_key=state.get(
+                    "request_idempotency_key"
+                ),
             )
             if (
                 trusted_ids is not None

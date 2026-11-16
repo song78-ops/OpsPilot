@@ -36,6 +36,7 @@ class AgentWorkflow:
         trusted_ticket_draft_ids: list[str] | None = None,
         ticket_target_ambiguous: bool = False,
         last_ticket_draft_id: str | None = None,
+        request_idempotency_key: str | None = None,
     ) -> AgentState:
         initial: AgentState = {
             "message": message,
@@ -49,6 +50,8 @@ class AgentWorkflow:
             "tool_calls": [],
             "usage_parts": [],
         }
+        if request_idempotency_key is not None:
+            initial["request_idempotency_key"] = request_idempotency_key
         if trusted_ticket_draft_ids is not None:
             initial["trusted_ticket_draft_ids"] = trusted_ticket_draft_ids
         try:

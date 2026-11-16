@@ -74,7 +74,7 @@ describe('agent API', () => {
     )
     vi.stubGlobal('fetch', fetchMock)
 
-    await runAgent('你好')
+    await runAgent('你好', null, 'retry-key-1')
 
     const [url, init] = fetchMock.mock.calls[0]
     expect(url).toBe('/api/v1/agent/run')
@@ -82,6 +82,9 @@ describe('agent API', () => {
     expect(JSON.parse(init.body as string)).toEqual({
       message: '你好',
       conversation_id: null,
+    })
+    expect(init.headers).toMatchObject({
+      'Idempotency-Key': 'retry-key-1',
     })
   })
 

@@ -7,6 +7,20 @@ from typing import Literal
 from app.schemas.ticket import TicketDraftResponse
 
 ConversationRole = Literal["user", "assistant", "tool"]
+AgentRequestStatus = Literal["in_progress", "completed", "failed"]
+
+
+@dataclass(frozen=True, slots=True)
+class AgentRequestRecord:
+    request_key: str
+    fingerprint: str
+    conversation_id: str | None
+    status: AgentRequestStatus
+    response_json: str | None
+    error_code: str | None
+    attempt_count: int
+    created_at: datetime
+    updated_at: datetime
 
 
 @dataclass(frozen=True, slots=True)
