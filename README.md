@@ -400,6 +400,30 @@ backend\.venv\Scripts\python.exe evaluations\agent_v1\run_evaluation.py --real
 `storage/conversations.db` 或审批 Checkpoint。结果写入
 `evaluations/agent_v1/results` 的 JSON 和 Markdown 报告。
 
+## RAG 答案质量评测
+
+答案质量评测位于：
+
+```text
+evaluations/rag_qa_v1
+```
+
+包含 13 份文档、14 个 Chunk、50 条人工核验问题：30 条可回答、20 条无答案，
+其中 8 条覆盖提示注入、误导信息、冲突规则和危险操作。
+
+真实评测默认关闭：
+
+```powershell
+cd D:\Projects\OpsPilot
+$env:RUN_REAL_RAG_QA_EVALS = "1"
+$env:RAG_QA_MAX_REQUESTS = "100"
+backend\.venv\Scripts\python.exe evaluations\rag_qa_v1\run_evaluation.py --real
+```
+
+评测使用独立的 documents、Qdrant 和 BM25 目录，不访问正常知识库。输出包含
+Recall@3、MRR@5、nDCG@5、答案正确性、Groundedness、引用有效性与支持性、
+拒答率、性能、Token 和逐题明细。
+
 ## LangGraph Agent
 
 `POST /api/v1/agent/run` 使用真正的 LangGraph `StateGraph`：

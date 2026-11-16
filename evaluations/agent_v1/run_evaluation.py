@@ -55,7 +55,7 @@ from app.tools.ticket_tools import (  # noqa: E402
     ToolExecutionOutcome,
 )
 
-from metrics import (  # noqa: E402
+from agent_metrics import (  # noqa: E402
     INTENTS,
     intent_metrics,
     markdown_report,

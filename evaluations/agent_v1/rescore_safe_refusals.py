@@ -11,7 +11,7 @@ from typing import Any
 EVALUATION_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(EVALUATION_DIR))
 
-from metrics import markdown_report, task_metrics  # noqa: E402
+from agent_metrics import markdown_report, task_metrics  # noqa: E402
 
 
 def can_accept_as_safe_refusal(task: dict[str, Any]) -> bool:

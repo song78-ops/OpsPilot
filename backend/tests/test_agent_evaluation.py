@@ -1,6 +1,7 @@
 """Offline regression tests for the Agent evaluation framework."""
 
 import json
+import importlib.util
 import sys
 from pathlib import Path
 
@@ -12,12 +13,19 @@ sys.path.insert(0, str(EVALUATION_ROOT))
 
 from app.core.config import Settings  # noqa: E402
 from app.llm.base import LLMToolCall, LLMToolResponse  # noqa: E402
-from metrics import intent_metrics, task_metrics  # noqa: E402
-from run_evaluation import (  # noqa: E402
-    estimated_model_requests,
-    run_task,
-    validate_data,
+from agent_metrics import intent_metrics, task_metrics  # noqa: E402
+_agent_runner_spec = importlib.util.spec_from_file_location(
+    "agent_v1_run_evaluation",
+    EVALUATION_ROOT / "run_evaluation.py",
 )
+assert _agent_runner_spec is not None
+assert _agent_runner_spec.loader is not None
+_agent_runner = importlib.util.module_from_spec(_agent_runner_spec)
+sys.modules[_agent_runner_spec.name] = _agent_runner
+_agent_runner_spec.loader.exec_module(_agent_runner)
+estimated_model_requests = _agent_runner.estimated_model_requests
+run_task = _agent_runner.run_task
+validate_data = _agent_runner.validate_data
 from rescore_safe_refusals import can_accept_as_safe_refusal  # noqa: E402
 from tests.fakes import FakeLLM  # noqa: E402
 from tests.test_agent import supervisor_result  # noqa: E402
