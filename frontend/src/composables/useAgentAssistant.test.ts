@@ -339,7 +339,7 @@ describe('useAgentAssistant', () => {
     expect(assistant.question.value).toBe('创建工单')
   })
 
-  it('reuses the idempotency key when retrying the same failed message', async () => {
+  it('reuses the request id when retrying the same failed message', async () => {
     vi.mocked(runAgent)
       .mockRejectedValueOnce(
         new AgentApiError('网络中断', 0, 'NETWORK_ERROR'),

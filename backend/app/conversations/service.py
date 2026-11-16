@@ -241,20 +241,28 @@ class ConversationMemoryService:
         self,
         *,
         message: str,
+        conversation_id: str | None,
         request_key: str,
+        request_id: str,
     ) -> AgentRequestRecord:
         """Claim a request key and reject reuse for different payloads."""
+        request_summary = json.dumps(
+            {
+                "message": message,
+                "conversation_id": conversation_id,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
         fingerprint = hashlib.sha256(
-            json.dumps(
-                {"message": message},
-                ensure_ascii=False,
-                separators=(",", ":"),
-                sort_keys=True,
-            ).encode("utf-8")
+            request_summary.encode("utf-8")
         ).hexdigest()
         return await self._repository.claim_request(
             request_key=request_key,
             fingerprint=fingerprint,
+            request_id=request_id,
+            request_summary=request_summary,
         )
 
     async def bind_request_conversation(

@@ -32,6 +32,7 @@ from app.core.exceptions import LLMTimeoutError
 from app.llm.base import LLMToolCall, LLMToolResponse
 from app.main import app
 from app.schemas.ticket import CreateTicketDraftArgs
+from app.tickets.exceptions import TicketPersistenceError
 from app.tickets.repository import SQLAlchemyTicketDraftRepository
 from app.tickets.service import TicketDraftService
 from app.tools.ticket_tools import (
@@ -207,6 +208,43 @@ class BlockingTicketLLM:
                 },
             )
         return final_response("工单草稿已保存。")
+
+
+class RecoverAfterUpdateLLM:
+    """Update a draft, fail once, then retry with a different tool call id."""
+
+    def __init__(self, *, draft_id: str) -> None:
+        self.draft_id = draft_id
+        self.tool_calls = 0
+        self.call_ids: list[str] = []
+
+    async def generate(self, *, system_prompt: str, user_message: str):
+        assert system_prompt
+        assert user_message
+        return supervisor_result("ticket_request")
+
+    async def generate_with_tools(self, *, messages, tools):
+        assert messages
+        assert tools
+        self.tool_calls += 1
+        if self.tool_calls == 2:
+            raise LLMTimeoutError()
+        if self.tool_calls in {1, 3}:
+            call_id = (
+                "update-before-crash"
+                if self.tool_calls == 1
+                else "update-after-retry"
+            )
+            self.call_ids.append(call_id)
+            return tool_response(
+                call_id=call_id,
+                name=UPDATE_TICKET_DRAFT,
+                arguments={
+                    "draft_id": self.draft_id,
+                    "description": "更新后触发恢复，版本不能递增两次。",
+                },
+            )
+        return final_response("工单问题描述已更新。")
 
 
 async def test_two_turn_ticket_update_and_persistent_history(
@@ -793,7 +831,7 @@ async def test_request_idempotency_replays_without_repeating_side_effects(
         generate_calls = llm.generate_calls
         replay = await service.run(
             message="创建一个请求级幂等测试工单。",
-            conversation_id=first.conversation_id,
+            conversation_id=None,
             idempotency_key="request-retry-1",
         )
 
@@ -855,12 +893,361 @@ async def test_agent_request_recovers_after_post_tool_failure_without_duplicate(
         await harness.close()
 
 
+async def test_completed_request_replays_after_service_restart(
+    tmp_path: Path,
+) -> None:
+    first_harness = await make_harness(tmp_path)
+    first_service = make_agent(
+        first_harness,
+        FakeLLM(
+            result=supervisor_result("ticket_request"),
+            tool_results=[
+                tool_response(
+                    call_id="restart-create-1",
+                    name=CREATE_TICKET_DRAFT,
+                    arguments={
+                        "title": "重启幂等测试",
+                        "description": "响应前重建服务，重试仍返回原草稿。",
+                        "device_or_system": "测试主机",
+                    },
+                ),
+                final_response("工单草稿已保存。"),
+            ],
+        ),
+    )
+    first = await first_service.run(
+        message="创建重启幂等测试工单。",
+        conversation_id=None,
+        request_id="persistent-request-1",
+    )
+    assert first.ticket_draft is not None
+    draft_id = first.ticket_draft.id
+    await first_harness.close()
+
+    second_harness = await make_harness(tmp_path)
+    second_service = make_agent(
+        second_harness,
+        FakeLLM(error=LLMTimeoutError()),
+    )
+    try:
+        replay = await second_service.run(
+            message="创建重启幂等测试工单。",
+            conversation_id=None,
+            request_id="persistent-request-1",
+        )
+
+        assert replay.idempotent_replay is True
+        assert replay.request_id == "persistent-request-1"
+        assert replay.ticket_draft is not None
+        assert replay.ticket_draft.id == draft_id
+        assert len(await second_harness.ticket_service.list()) == 1
+        with sqlite3.connect(tmp_path / "conversations.db") as connection:
+            row = connection.execute(
+                "SELECT request_id, request_summary, status, response_json "
+                "FROM agent_request_runs WHERE request_id = ?",
+                ("persistent-request-1",),
+            ).fetchone()
+        assert row is not None
+        assert row[0] == "persistent-request-1"
+        assert json.loads(row[1])["message"] == "创建重启幂等测试工单。"
+        assert row[2] == "completed"
+        assert row[3] is not None
+    finally:
+        await second_harness.close()
+
+
+async def test_existing_request_table_is_migrated_for_summary_fields(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "conversations.db"
+    with sqlite3.connect(database_path) as connection:
+        connection.execute(
+            "CREATE TABLE agent_request_runs ("
+            "request_key VARCHAR(64) PRIMARY KEY, "
+            "fingerprint VARCHAR(64) NOT NULL, "
+            "conversation_id VARCHAR(64), "
+            "status VARCHAR(20) NOT NULL, "
+            "response_json TEXT, "
+            "error_code VARCHAR(64), "
+            "attempt_count INTEGER NOT NULL, "
+            "created_at DATETIME NOT NULL, "
+            "updated_at DATETIME NOT NULL)"
+        )
+
+    repository = SQLAlchemyConversationRepository(
+        f"sqlite+aiosqlite:///{database_path.as_posix()}"
+    )
+    try:
+        conversation = await repository.create()
+        record = await repository.claim_request(
+            request_key="a" * 64,
+            fingerprint="b" * 64,
+            request_id="migration-request-1",
+            request_summary='{"message":"迁移测试","conversation_id":null}',
+        )
+
+        assert record.request_id == "migration-request-1"
+        assert record.request_summary is not None
+        with sqlite3.connect(database_path) as connection:
+            columns = {
+                row[1]
+                for row in connection.execute(
+                    "PRAGMA table_info(agent_request_runs)"
+                )
+            }
+        assert {"request_id", "request_summary"} <= columns
+        assert conversation.id
+    finally:
+        await repository.close()
+
+
+async def test_update_recovers_after_restart_without_incrementing_twice(
+    tmp_path: Path,
+) -> None:
+    first_harness = await make_harness(tmp_path)
+    seed_service = make_agent(
+        first_harness,
+        FakeLLM(
+            result=supervisor_result("ticket_request"),
+            tool_results=[
+                tool_response(
+                    call_id="seed-update-recovery",
+                    name=CREATE_TICKET_DRAFT,
+                    arguments={
+                        "title": "更新恢复测试",
+                        "description": "原始描述。",
+                        "device_or_system": "测试设备",
+                    },
+                ),
+                final_response("工单草稿已保存。"),
+            ],
+        ),
+    )
+    seeded = await seed_service.run(
+        message="创建更新恢复测试工单。",
+        conversation_id=None,
+    )
+    assert seeded.ticket_draft is not None
+    draft_id = seeded.ticket_draft.id
+    conversation_id = seeded.conversation_id
+    assert conversation_id is not None
+
+    first_update_llm = RecoverAfterUpdateLLM(draft_id=draft_id)
+    first_update_service = make_agent(
+        first_harness,
+        first_update_llm,  # type: ignore[arg-type]
+    )
+    update_message = "把更新恢复测试工单的问题描述改成更新后触发恢复。"
+    with pytest.raises(LLMTimeoutError):
+        await first_update_service.run(
+            message=update_message,
+            conversation_id=conversation_id,
+            request_id="update-recovery-1",
+        )
+    assert (await first_harness.ticket_service.get(draft_id)).version == 2
+    await first_harness.close()
+
+    second_harness = await make_harness(tmp_path)
+    second_update_llm = FakeLLM(
+        result=supervisor_result("ticket_request"),
+        tool_results=[
+            tool_response(
+                call_id="update-after-retry",
+                name=UPDATE_TICKET_DRAFT,
+                arguments={
+                    "draft_id": draft_id,
+                    "description": "模型重试产生的新描述也不能再次写入。",
+                },
+            ),
+            final_response("工单问题描述已更新。"),
+        ],
+    )
+    second_update_service = make_agent(
+        second_harness,
+        second_update_llm,
+    )
+    try:
+        recovered = await second_update_service.run(
+            message=update_message,
+            conversation_id=conversation_id,
+            request_id="update-recovery-1",
+        )
+
+        assert recovered.ticket_draft is not None
+        stored = await second_harness.ticket_service.get(draft_id)
+        assert stored.version == 2
+        assert stored.description == "更新后触发恢复，版本不能递增两次。"
+        assert first_update_llm.call_ids == ["update-before-crash"]
+        with sqlite3.connect(tmp_path / "tickets.db") as connection:
+            operation_count = connection.execute(
+                "SELECT COUNT(*) FROM ticket_tool_operations "
+                "WHERE operation = 'update'"
+            ).fetchone()[0]
+        assert operation_count == 1
+    finally:
+        await second_harness.close()
+
+
+async def test_result_commit_failure_recovers_without_duplicate_create(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first_harness = await make_harness(tmp_path)
+    first_llm = FakeLLM(
+        result=supervisor_result("ticket_request"),
+        tool_results=[
+            tool_response(
+                call_id="commit-failure-create",
+                name=CREATE_TICKET_DRAFT,
+                arguments={
+                    "title": "结果提交失败恢复",
+                    "description": "工单已写入，但请求结果提交失败。",
+                    "device_or_system": "测试数据库",
+                },
+            ),
+            final_response("工单草稿已保存。"),
+        ],
+    )
+    first_service = make_agent(first_harness, first_llm)
+
+    async def fail_complete(**kwargs):
+        raise ConversationPersistenceError()
+
+    monkeypatch.setattr(
+        first_harness.memory,
+        "complete_request_turn",
+        fail_complete,
+    )
+    with pytest.raises(ConversationPersistenceError):
+        await first_service.run(
+            message="创建结果提交失败恢复工单。",
+            conversation_id=None,
+            request_id="commit-failure-1",
+        )
+    first_drafts = await first_harness.ticket_service.list()
+    assert len(first_drafts) == 1
+    await first_harness.close()
+
+    second_harness = await make_harness(tmp_path)
+    second_service = make_agent(
+        second_harness,
+        FakeLLM(
+            result=supervisor_result("ticket_request"),
+            tool_results=[
+                tool_response(
+                    call_id="commit-failure-retry",
+                    name=CREATE_TICKET_DRAFT,
+                    arguments={
+                        "title": "结果提交失败恢复",
+                        "description": "工单已写入，但请求结果提交失败。",
+                        "device_or_system": "测试数据库",
+                    },
+                ),
+                final_response("工单草稿已保存。"),
+            ],
+        ),
+    )
+    try:
+        recovered = await second_service.run(
+            message="创建结果提交失败恢复工单。",
+            conversation_id=None,
+            request_id="commit-failure-1",
+        )
+
+        assert recovered.ticket_draft is not None
+        assert recovered.ticket_draft.id == first_drafts[0].id
+        assert recovered.idempotent_replay is False
+        assert len(await second_harness.ticket_service.list()) == 1
+    finally:
+        await second_harness.close()
+
+
+async def test_transient_ticket_database_error_remains_retryable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    harness = await make_harness(tmp_path)
+    llm = FakeLLM(
+        result=supervisor_result("ticket_request"),
+        tool_results=[
+            tool_response(
+                call_id="transient-db-create",
+                name=CREATE_TICKET_DRAFT,
+                arguments={
+                    "title": "数据库瞬时失败",
+                    "description": "第一次写入失败，同一请求可重试。",
+                    "device_or_system": "测试数据库",
+                },
+            ),
+            final_response("工单草稿已保存。"),
+        ],
+    )
+    service = make_agent(harness, llm)
+    original_create = harness.ticket_repository.create
+    attempts = 0
+
+    async def fail_once(**kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise TicketPersistenceError()
+        return await original_create(**kwargs)
+
+    monkeypatch.setattr(harness.ticket_repository, "create", fail_once)
+    try:
+        with pytest.raises(TicketPersistenceError):
+            await service.run(
+                message="创建数据库瞬时失败工单。",
+                conversation_id=None,
+                request_id="transient-db-1",
+            )
+        assert await harness.ticket_service.list() == []
+        with sqlite3.connect(tmp_path / "conversations.db") as connection:
+            failed_state = connection.execute(
+                "SELECT status, attempt_count, error_code "
+                "FROM agent_request_runs WHERE request_id = ?",
+                ("transient-db-1",),
+            ).fetchone()
+        assert failed_state == (
+            "failed",
+            1,
+            "TICKET_PERSISTENCE_ERROR",
+        )
+
+        monkeypatch.setattr(
+            harness.ticket_repository,
+            "create",
+            original_create,
+        )
+        llm._tool_index = 0
+        recovered = await service.run(
+            message="创建数据库瞬时失败工单。",
+            conversation_id=None,
+            request_id="transient-db-1",
+        )
+
+        assert recovered.ticket_draft is not None
+        assert len(await harness.ticket_service.list()) == 1
+        with sqlite3.connect(tmp_path / "conversations.db") as connection:
+            completed_state = connection.execute(
+                "SELECT status, attempt_count, response_json "
+                "FROM agent_request_runs WHERE request_id = ?",
+                ("transient-db-1",),
+            ).fetchone()
+        assert completed_state[0] == "completed"
+        assert completed_state[1] == 2
+        assert completed_state[2] is not None
+    finally:
+        await harness.close()
+
+
 async def test_concurrent_retries_wait_for_one_completed_request(
     tmp_path: Path,
 ) -> None:
     harness = await make_harness(tmp_path)
     llm = BlockingTicketLLM()
     service = make_agent(harness, llm)  # type: ignore[arg-type]
+    retry_service = make_agent(harness, llm)  # type: ignore[arg-type]
     try:
         first_task = asyncio.create_task(
             service.run(
@@ -871,7 +1258,7 @@ async def test_concurrent_retries_wait_for_one_completed_request(
         )
         await llm.entered.wait()
         retry_task = asyncio.create_task(
-            service.run(
+            retry_service.run(
                 message="创建并发重试测试工单。",
                 conversation_id=None,
                 idempotency_key="request-concurrent-1",
@@ -994,25 +1381,41 @@ async def test_agent_api_replays_idempotent_request(
         lambda: harness.memory
     )
     try:
-        payload = {"message": "你好", "conversation_id": None}
+        payload = {
+            "message": "你好",
+            "conversation_id": None,
+            "request_id": "api-retry-1",
+        }
         first = await client.post(
             "/api/v1/agent/run",
             json=payload,
-            headers={"Idempotency-Key": "api-retry-1"},
         )
         replay = await client.post(
             "/api/v1/agent/run",
             json=payload,
-            headers={"Idempotency-Key": "api-retry-1"},
         )
 
         assert first.status_code == 200
         assert replay.status_code == 200
         assert replay.headers["Idempotency-Replayed"] == "true"
         assert replay.json()["idempotent_replay"] is True
+        assert replay.json()["request_id"] == "api-retry-1"
         assert replay.json()["request_id"] == first.json()["request_id"]
         assert replay.json()["conversation_id"] == (
             first.json()["conversation_id"]
+        )
+
+        conflict = await client.post(
+            "/api/v1/agent/run",
+            json={
+                "message": "不同内容的请求",
+                "conversation_id": None,
+                "request_id": "api-retry-1",
+            },
+        )
+        assert conflict.status_code == 409
+        assert conflict.json()["error"]["code"] == (
+            "AGENT_IDEMPOTENCY_KEY_REUSED"
         )
     finally:
         await harness.close()

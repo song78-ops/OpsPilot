@@ -15,7 +15,10 @@ from app.schemas.ticket import (
     TicketDraftUpdateRequest,
     UpdateTicketDraftArgs,
 )
-from app.tickets.exceptions import TicketDraftValidationError
+from app.tickets.exceptions import (
+    TicketDraftValidationError,
+    TicketPersistenceError,
+)
 from app.tickets.service import TicketDraftService
 
 CREATE_TICKET_DRAFT = "create_ticket_draft"
@@ -82,6 +85,7 @@ class ToolExecutionOutcome(BaseModel):
     message: str
     draft: TicketDraftResponse | None = None
     created: bool = False
+    replayed: bool = False
     error_code: str | None = None
     missing_fields: list[str] = []
 
@@ -157,6 +161,15 @@ class TicketToolExecutor:
                 error_code="TICKET_DRAFT_MISSING_FIELDS",
                 missing_fields=exc.missing_fields,
             )
+        except TicketPersistenceError:
+            if request_idempotency_key is not None:
+                raise
+            return ToolExecutionOutcome(
+                ok=False,
+                status="error",
+                message="The ticket draft could not be persisted.",
+                error_code="TICKET_PERSISTENCE_ERROR",
+            )
         except ApplicationError as exc:
             return ToolExecutionOutcome(
                 ok=False,
@@ -184,17 +197,11 @@ class TicketToolExecutor:
         request_idempotency_key: str | None,
     ) -> ToolExecutionOutcome:
         if call.name == CREATE_TICKET_DRAFT:
-            key_scope = (
-                f"request:{request_idempotency_key}:{call.name}"
-                if request_idempotency_key is not None
-                else f"{call.name}:{call.id}"
+            idempotency_key = self._idempotency_key(
+                call=call,
+                conversation_id=conversation_id,
+                request_idempotency_key=request_idempotency_key,
             )
-            idempotency_key = hashlib.sha256(
-                (
-                    f"{conversation_id or 'stateless'}:"
-                    f"{key_scope}"
-                ).encode("utf-8")
-            ).hexdigest()
             result = await self._service.create(
                 args=CreateTicketDraftArgs.model_validate(arguments),
                 idempotency_key=idempotency_key,
@@ -210,6 +217,7 @@ class TicketToolExecutor:
                 ),
                 draft=draft,
                 created=result.created,
+                replayed=not result.created,
             )
 
         if call.name == GET_TICKET_DRAFT:
@@ -247,20 +255,61 @@ class TicketToolExecutor:
                 ),
                 error_code="TICKET_TARGET_AMBIGUOUS",
             )
-        draft = await self._service.update(
-            args.draft_id,
-            TicketDraftUpdateRequest(
-                title=args.title,
-                description=args.description,
-                device_or_system=args.device_or_system,
-            ),
+        values = TicketDraftUpdateRequest(
+            title=args.title,
+            description=args.description,
+            device_or_system=args.device_or_system,
         )
+        if request_idempotency_key is not None:
+            mutation = await self._service.update_with_idempotency(
+                args.draft_id,
+                values,
+                idempotency_key=self._idempotency_key(
+                    call=call,
+                    conversation_id=conversation_id,
+                    request_idempotency_key=request_idempotency_key,
+                ),
+            )
+            draft = mutation.draft
+            message = (
+                f"工单草稿 {draft.id} 已更新，尚未创建正式工单。"
+                if not mutation.replayed
+                else f"该请求的工单修改已存在，返回草稿 ID: {draft.id}。"
+            )
+            return ToolExecutionOutcome(
+                ok=True,
+                status="updated",
+                message=message,
+                draft=draft,
+                replayed=mutation.replayed,
+            )
+
+        draft = await self._service.update(args.draft_id, values)
         return ToolExecutionOutcome(
             ok=True,
             status="updated",
             message=f"工单草稿 {draft.id} 已更新，尚未创建正式工单。",
             draft=draft,
         )
+
+    @staticmethod
+    def _idempotency_key(
+        *,
+        call: LLMToolCall,
+        conversation_id: str | None,
+        request_idempotency_key: str | None,
+    ) -> str:
+        key_scope = (
+            f"request:{request_idempotency_key}:{call.name}"
+            if request_idempotency_key is not None
+            else f"{call.name}:{call.id}"
+        )
+        return hashlib.sha256(
+            (
+                f"{conversation_id or 'stateless'}:"
+                f"{key_scope}"
+            ).encode("utf-8")
+        ).hexdigest()
 
     @staticmethod
     def _ticket_scope_error(

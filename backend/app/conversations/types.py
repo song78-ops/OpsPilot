@@ -13,6 +13,8 @@ AgentRequestStatus = Literal["in_progress", "completed", "failed"]
 @dataclass(frozen=True, slots=True)
 class AgentRequestRecord:
     request_key: str
+    request_id: str | None
+    request_summary: str | None
     fingerprint: str
     conversation_id: str | None
     status: AgentRequestStatus

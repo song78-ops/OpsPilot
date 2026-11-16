@@ -36,6 +36,15 @@ class TicketPersistenceError(ApplicationError):
         )
 
 
+class TicketIdempotencyConflictError(ApplicationError):
+    def __init__(self) -> None:
+        super().__init__(
+            "The ticket operation idempotency key was reused with different data.",
+            code="TICKET_IDEMPOTENCY_KEY_REUSED",
+            status_code=409,
+        )
+
+
 class TicketDraftStateConflictError(ApplicationError):
     def __init__(self, draft_id: str) -> None:
         super().__init__(

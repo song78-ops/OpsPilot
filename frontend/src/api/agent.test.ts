@@ -82,9 +82,7 @@ describe('agent API', () => {
     expect(JSON.parse(init.body as string)).toEqual({
       message: '你好',
       conversation_id: null,
-    })
-    expect(init.headers).toMatchObject({
-      'Idempotency-Key': 'retry-key-1',
+      request_id: 'retry-key-1',
     })
   })
 

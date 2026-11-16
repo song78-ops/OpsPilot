@@ -13,6 +13,7 @@ class AgentRunRequest(BaseModel):
 
     message: str = Field(min_length=1, max_length=4_000)
     conversation_id: str | None = Field(default=None, max_length=128)
+    request_id: str | None = Field(default=None, max_length=128)
 
 
 class AgentNodeTraceResponse(BaseModel):

@@ -9,7 +9,11 @@ from app.tickets.exceptions import (
     TicketDraftNotFoundError,
     TicketDraftValidationError,
 )
-from app.tickets.repository import TicketDraftRepository, TicketDraftWrite
+from app.tickets.repository import (
+    TicketDraftMutation,
+    TicketDraftRepository,
+    TicketDraftWrite,
+)
 
 
 class TicketDraftService:
@@ -59,6 +63,30 @@ class TicketDraftService:
         draft_id: str,
         values: TicketDraftUpdateRequest,
     ) -> TicketDraftResponse:
+        normalized = self._normalize_update(values)
+        draft = await self._repository.update(draft_id, normalized)
+        if draft is None:
+            raise TicketDraftNotFoundError(draft_id)
+        return draft
+
+    async def update_with_idempotency(
+        self,
+        draft_id: str,
+        values: TicketDraftUpdateRequest,
+        *,
+        idempotency_key: str,
+    ) -> TicketDraftMutation:
+        normalized = self._normalize_update(values)
+        return await self._repository.update_with_idempotency(
+            idempotency_key=idempotency_key,
+            draft_id=draft_id,
+            values=normalized,
+        )
+
+    @staticmethod
+    def _normalize_update(
+        values: TicketDraftUpdateRequest,
+    ) -> TicketDraftUpdateRequest:
         normalized = TicketDraftUpdateRequest(
             title=values.title.strip() if values.title is not None else None,
             description=(
@@ -84,10 +112,7 @@ class TicketDraftService:
             raise TicketDraftValidationError(
                 "Updated ticket draft fields must not be blank."
             )
-        draft = await self._repository.update(draft_id, normalized)
-        if draft is None:
-            raise TicketDraftNotFoundError(draft_id)
-        return draft
+        return normalized
 
     async def list(self) -> list[TicketDraftResponse]:
         return await self._repository.list()

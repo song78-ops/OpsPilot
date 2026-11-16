@@ -26,6 +26,7 @@ from app.schemas.rag import RagSourceResponse
 from app.tools.ticket_tools import ToolExecutionOutcome
 
 logger = logging.getLogger(__name__)
+_REQUEST_LOCKS: dict[str, asyncio.Lock] = {}
 
 
 class AgentService:
@@ -39,15 +40,16 @@ class AgentService:
     ) -> None:
         self._workflow = workflow
         self._conversation_memory = conversation_memory
-        self._request_locks: dict[str, asyncio.Lock] = {}
 
     async def run(
         self,
         *,
         message: str,
         conversation_id: str | None,
+        request_id: str | None = None,
         idempotency_key: str | None = None,
     ) -> AgentRunResponse:
+        client_request_id = request_id or idempotency_key
         if self._conversation_memory is None:
             started_at = time.perf_counter()
             state = await self._workflow.run(
@@ -59,15 +61,15 @@ class AgentService:
                 conversation_id=conversation_id,
                 started_at=started_at,
                 memory_persisted=False,
-                request_id=uuid.uuid4().hex,
+                request_id=client_request_id or uuid.uuid4().hex,
                 idempotent_replay=False,
             )
 
-        if idempotency_key is not None:
+        if client_request_id is not None:
             request_key = hashlib.sha256(
-                f"agent-run:{idempotency_key}".encode("utf-8")
+                f"agent-run:{client_request_id}".encode("utf-8")
             ).hexdigest()
-            lock = self._request_locks.setdefault(
+            lock = _REQUEST_LOCKS.setdefault(
                 request_key,
                 asyncio.Lock(),
             )
@@ -76,6 +78,7 @@ class AgentService:
                     message=message,
                     conversation_id=conversation_id,
                     request_key=request_key,
+                    request_id=client_request_id,
                 )
 
         conversation = await self._conversation_memory.begin_or_resume(
@@ -85,6 +88,7 @@ class AgentService:
             message=message,
             conversation_id=conversation.id,
             request_key=None,
+            request_id=uuid.uuid4().hex,
         )
 
     async def _run_idempotent(
@@ -93,12 +97,15 @@ class AgentService:
         message: str,
         conversation_id: str | None,
         request_key: str,
+        request_id: str,
     ) -> AgentRunResponse:
         if self._conversation_memory is None:
             raise RuntimeError("Conversation memory is not configured")
         record = await self._conversation_memory.claim_request(
             message=message,
+            conversation_id=conversation_id,
             request_key=request_key,
+            request_id=request_id,
         )
         if record.status == "completed":
             if record.response_json is None:
@@ -121,6 +128,7 @@ class AgentService:
             message=message,
             conversation_id=conversation.id,
             request_key=record.request_key,
+            request_id=record.request_id or request_id,
         )
 
     async def _run_with_memory(
@@ -129,6 +137,7 @@ class AgentService:
         message: str,
         conversation_id: str,
         request_key: str | None,
+        request_id: str,
     ) -> AgentRunResponse:
         if self._conversation_memory is None:
             raise RuntimeError("Conversation memory is not configured")
@@ -213,7 +222,7 @@ class AgentService:
                 conversation_id=conversation.id,
                 started_at=started_at,
                 memory_persisted=True,
-                request_id=(request_key or uuid.uuid4().hex)[:32],
+                request_id=request_id,
                 idempotent_replay=False,
             )
             assistant_content = (

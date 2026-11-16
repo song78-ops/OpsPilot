@@ -105,21 +105,15 @@ function jsonInit(method: string, payload: unknown): RequestInit {
 export async function runAgent(
   message: string,
   conversationId?: string | null,
-  idempotencyKey?: string,
+  requestId?: string,
 ): Promise<AgentRunResponse> {
-  const init = jsonInit('POST', {
-    message,
-    conversation_id: conversationId ?? null,
-  })
-  if (idempotencyKey) {
-    init.headers = {
-      ...(init.headers as Record<string, string>),
-      'Idempotency-Key': idempotencyKey,
-    }
-  }
   return requestJson<AgentRunResponse>(
     '/api/v1/agent/run',
-    init,
+    jsonInit('POST', {
+      message,
+      conversation_id: conversationId ?? null,
+      request_id: requestId ?? null,
+    }),
   )
 }
 

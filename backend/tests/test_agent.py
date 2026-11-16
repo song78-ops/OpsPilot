@@ -325,3 +325,24 @@ async def test_agent_api_returns_trace_and_usage(
     assert body["usage"]["prompt_tokens"] == 70
     assert body["usage"]["completion_tokens"] == 30
 
+
+async def test_agent_api_rejects_conflicting_request_ids(
+    client: httpx.AsyncClient,
+) -> None:
+    service = make_service(
+        FakeLLM(result=supervisor_result("general_chat"))
+    )
+    app.dependency_overrides[get_agent_service] = lambda: service
+
+    response = await client.post(
+        "/api/v1/agent/run",
+        json={
+            "message": "你好",
+            "request_id": "body-request-id",
+        },
+        headers={"Idempotency-Key": "different-header-id"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "AGENT_REQUEST_ID_CONFLICT"
+

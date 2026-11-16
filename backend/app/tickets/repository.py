@@ -1,6 +1,8 @@
 """Repository interface and SQLAlchemy SQLite implementation."""
 
 import asyncio
+import hashlib
+import json
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -20,6 +22,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
+    AsyncSession,
     async_sessionmaker,
     create_async_engine,
 )
@@ -35,8 +38,10 @@ from app.approvals.types import (
 )
 from app.tickets.exceptions import (
     TicketApprovalStateConflictError,
+    TicketDraftNotFoundError,
     TicketDraftStateConflictError,
     TicketDraftVersionConflictError,
+    TicketIdempotencyConflictError,
     TicketPersistenceError,
 )
 
@@ -125,10 +130,40 @@ class TicketApprovalAuditRow(TicketBase):
     )
 
 
+class TicketToolOperationRow(TicketBase):
+    __tablename__ = "ticket_tool_operations"
+
+    idempotency_key: Mapped[str] = mapped_column(
+        String(64),
+        primary_key=True,
+    )
+    operation: Mapped[str] = mapped_column(String(32), nullable=False)
+    draft_id: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        index=True,
+    )
+    payload_fingerprint: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+    )
+    result_json: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class TicketDraftWrite:
     draft: TicketDraftResponse
     created: bool
+
+
+@dataclass(frozen=True, slots=True)
+class TicketDraftMutation:
+    draft: TicketDraftResponse
+    replayed: bool
 
 
 class TicketDraftRepository(Protocol):
@@ -150,6 +185,15 @@ class TicketDraftRepository(Protocol):
         draft_id: str,
         values: TicketDraftUpdateRequest,
     ) -> TicketDraftResponse | None:
+        ...
+
+    async def update_with_idempotency(
+        self,
+        *,
+        idempotency_key: str,
+        draft_id: str,
+        values: TicketDraftUpdateRequest,
+    ) -> TicketDraftMutation:
         ...
 
     async def list(self) -> list[TicketDraftResponse]:
@@ -225,6 +269,7 @@ class SQLAlchemyTicketDraftRepository:
             existing = await self._get_by_idempotency_key(idempotency_key)
         except SQLAlchemyError as exc:
             raise TicketPersistenceError() from exc
+
         if existing is not None:
             return TicketDraftWrite(draft=existing, created=False)
 
@@ -306,6 +351,82 @@ class SQLAlchemyTicketDraftRepository:
                     if row is None:
                         return None
                     return self._to_response(row)
+        except SQLAlchemyError as exc:
+            raise TicketPersistenceError() from exc
+
+    async def update_with_idempotency(
+        self,
+        *,
+        idempotency_key: str,
+        draft_id: str,
+        values: TicketDraftUpdateRequest,
+    ) -> TicketDraftMutation:
+        """Apply one update and persist its replay result atomically."""
+        await self._ensure_schema()
+        now = datetime.now(timezone.utc)
+        payload_fingerprint = hashlib.sha256(
+            json.dumps(
+                {
+                    "draft_id": draft_id,
+                    **values.model_dump(mode="json"),
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode("utf-8")
+        ).hexdigest()
+        try:
+            async with self._session_factory() as session:
+                async with session.begin():
+                    operation = await session.get(
+                        TicketToolOperationRow,
+                        idempotency_key,
+                    )
+                    if operation is not None:
+                        if (
+                            operation.operation != "update"
+                            or operation.draft_id != draft_id
+                        ):
+                            raise TicketIdempotencyConflictError()
+                        return self._mutation(
+                            operation,
+                            replayed=True,
+                        )
+
+                    draft = await self._apply_update(
+                        session,
+                        draft_id=draft_id,
+                        values=values,
+                        now=now,
+                    )
+                    if draft is None:
+                        raise TicketDraftNotFoundError(draft_id)
+                    operation = TicketToolOperationRow(
+                        idempotency_key=idempotency_key,
+                        operation="update",
+                        draft_id=draft_id,
+                        payload_fingerprint=payload_fingerprint,
+                        result_json=draft.model_dump_json(),
+                        created_at=now,
+                    )
+                    session.add(operation)
+                    await session.flush()
+                    return TicketDraftMutation(
+                        draft=draft,
+                        replayed=False,
+                    )
+        except TicketIdempotencyConflictError:
+            raise
+        except IntegrityError:
+            existing = await self._get_operation(idempotency_key)
+            if existing is None:
+                raise TicketPersistenceError()
+            if (
+                existing.operation != "update"
+                or existing.draft_id != draft_id
+            ):
+                raise TicketIdempotencyConflictError()
+            return self._mutation(existing, replayed=True)
         except SQLAlchemyError as exc:
             raise TicketPersistenceError() from exc
 
@@ -548,6 +669,69 @@ class SQLAlchemyTicketDraftRepository:
                 )
             )
             return self._to_response(row) if row is not None else None
+
+    async def _get_operation(
+        self,
+        idempotency_key: str,
+    ) -> TicketToolOperationRow | None:
+        async with self._session_factory() as session:
+            return await session.get(
+                TicketToolOperationRow,
+                idempotency_key,
+            )
+
+    @staticmethod
+    async def _apply_update(
+        session: AsyncSession,
+        *,
+        draft_id: str,
+        values: TicketDraftUpdateRequest,
+        now: datetime,
+    ) -> TicketDraftResponse | None:
+        field_values: dict[str, object] = {"updated_at": now}
+        if values.title is not None:
+            field_values["title"] = values.title
+        if values.description is not None:
+            field_values["description"] = values.description
+        if values.device_or_system is not None:
+            field_values["device_or_system"] = values.device_or_system
+        result = await session.execute(
+            update(TicketDraftRow)
+            .where(
+                TicketDraftRow.id == draft_id,
+                TicketDraftRow.status == "draft",
+            )
+            .values(
+                **field_values,
+                version=TicketDraftRow.version + 1,
+            )
+        )
+        if result.rowcount == 0:
+            existing = await session.get(TicketDraftRow, draft_id)
+            if existing is None:
+                return None
+            raise TicketDraftStateConflictError(draft_id)
+        row = await session.get(
+            TicketDraftRow,
+            draft_id,
+            populate_existing=True,
+        )
+        if row is None:
+            return None
+        return SQLAlchemyTicketDraftRepository._to_response(row)
+
+    @staticmethod
+    def _mutation(
+        operation: TicketToolOperationRow,
+        *,
+        replayed: bool,
+    ) -> TicketDraftMutation:
+        return TicketDraftMutation(
+            draft=TicketDraftResponse.model_validate_json(
+                operation.result_json
+            ),
+            replayed=replayed,
+        )
 
     @staticmethod
     def _to_response(row: TicketDraftRow) -> TicketDraftResponse:

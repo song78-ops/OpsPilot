@@ -18,10 +18,10 @@ const LAST_CONVERSATION_KEY = 'opspilot.agent.lastConversationId'
 interface PendingAgentRequest {
   message: string
   conversationId: string | null
-  idempotencyKey: string
+  requestId: string
 }
 
-function createIdempotencyKey(): string {
+function createRequestId(): string {
   if (
     typeof globalThis.crypto !== 'undefined'
     && typeof globalThis.crypto.randomUUID === 'function'
@@ -208,17 +208,17 @@ export function useAgentAssistant() {
     }
 
     const requestedConversationId = currentConversationId.value
-    const idempotencyKey = (
+    const requestId = (
       pendingRequest
       && pendingRequest.message === message
       && pendingRequest.conversationId === requestedConversationId
     )
-      ? pendingRequest.idempotencyKey
-      : createIdempotencyKey()
+      ? pendingRequest.requestId
+      : createRequestId()
     pendingRequest = {
       message,
       conversationId: requestedConversationId,
-      idempotencyKey,
+      requestId,
     }
     isRunning.value = true
     error.value = ''
@@ -227,7 +227,7 @@ export function useAgentAssistant() {
       const response = await runAgent(
         message,
         requestedConversationId,
-        idempotencyKey,
+        requestId,
       )
       if (!response.conversation_id) {
         throw new Error('后端未返回 conversation_id。')

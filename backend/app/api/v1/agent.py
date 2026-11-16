@@ -38,21 +38,42 @@ async def run_agent(
     ] = None,
 ) -> AgentRunResponse:
     """Run one supervised LangGraph workflow."""
-    normalized_key = (
+    normalized_header = (
         idempotency_key.strip()
         if idempotency_key is not None
         else None
     )
-    if idempotency_key is not None and not normalized_key:
+    normalized_body = (
+        payload.request_id.strip()
+        if payload.request_id is not None
+        else None
+    )
+    if idempotency_key is not None and not normalized_header:
         raise ApplicationError(
             "Idempotency-Key must not be blank.",
             code="AGENT_IDEMPOTENCY_KEY_INVALID",
             status_code=400,
         )
+    if payload.request_id is not None and not normalized_body:
+        raise ApplicationError(
+            "request_id must not be blank.",
+            code="AGENT_REQUEST_ID_INVALID",
+            status_code=400,
+        )
+    if (
+        normalized_header is not None
+        and normalized_body is not None
+        and normalized_header != normalized_body
+    ):
+        raise ApplicationError(
+            "request_id and Idempotency-Key must match when both are present.",
+            code="AGENT_REQUEST_ID_CONFLICT",
+            status_code=400,
+        )
     result = await service.run(
         message=payload.message,
         conversation_id=payload.conversation_id,
-        idempotency_key=normalized_key,
+        request_id=normalized_body or normalized_header,
     )
     if result.idempotent_replay:
         response.headers["Idempotency-Replayed"] = "true"

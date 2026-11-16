@@ -97,6 +97,14 @@ class AgentRequestRow(ConversationBase):
     __tablename__ = "agent_request_runs"
 
     request_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    request_id: Mapped[str | None] = mapped_column(
+        String(128),
+        nullable=True,
+    )
+    request_summary: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
     fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     conversation_id: Mapped[str | None] = mapped_column(
         String(64),
@@ -180,6 +188,8 @@ class ConversationRepository(Protocol):
         *,
         request_key: str,
         fingerprint: str,
+        request_id: str,
+        request_summary: str,
     ) -> AgentRequestRecord:
         ...
 
@@ -431,6 +441,8 @@ class SQLAlchemyConversationRepository:
         *,
         request_key: str,
         fingerprint: str,
+        request_id: str,
+        request_summary: str,
     ) -> AgentRequestRecord:
         """Reserve one durable Agent request or return its completed result."""
         await self._ensure_schema()
@@ -442,6 +454,8 @@ class SQLAlchemyConversationRepository:
                     if row is None:
                         row = AgentRequestRow(
                             request_key=request_key,
+                            request_id=request_id,
+                            request_summary=request_summary,
                             fingerprint=fingerprint,
                             conversation_id=None,
                             status="in_progress",
@@ -455,6 +469,17 @@ class SQLAlchemyConversationRepository:
                     else:
                         if row.fingerprint != fingerprint:
                             raise AgentIdempotencyConflictError()
+                        if row.request_id not in {None, request_id}:
+                            raise AgentIdempotencyConflictError()
+                        if (
+                            row.request_summary is not None
+                            and row.request_summary != request_summary
+                        ):
+                            raise AgentIdempotencyConflictError()
+                        if row.request_id is None:
+                            row.request_id = request_id
+                        if row.request_summary is None:
+                            row.request_summary = request_summary
                         if row.status != "completed":
                             row.status = "in_progress"
                             row.error_code = None
@@ -468,7 +493,14 @@ class SQLAlchemyConversationRepository:
             existing = await self._get_request(request_key)
             if existing is None:
                 raise ConversationPersistenceError()
-            if existing.fingerprint != fingerprint:
+            if (
+                existing.fingerprint != fingerprint
+                or existing.request_id not in {None, request_id}
+                or (
+                    existing.request_summary is not None
+                    and existing.request_summary != request_summary
+                )
+            ):
                 raise AgentIdempotencyConflictError()
             return existing
         except SQLAlchemyError as exc:
@@ -670,6 +702,22 @@ class SQLAlchemyConversationRepository:
                     await connection.run_sync(
                         ConversationBase.metadata.create_all
                     )
+                    columns = await connection.exec_driver_sql(
+                        "PRAGMA table_info(agent_request_runs)"
+                    )
+                    column_names = {
+                        str(row[1]) for row in columns.fetchall()
+                    }
+                    if "request_id" not in column_names:
+                        await connection.exec_driver_sql(
+                            "ALTER TABLE agent_request_runs "
+                            "ADD COLUMN request_id VARCHAR(128)"
+                        )
+                    if "request_summary" not in column_names:
+                        await connection.exec_driver_sql(
+                            "ALTER TABLE agent_request_runs "
+                            "ADD COLUMN request_summary TEXT"
+                        )
                 self._schema_ready = True
             except SQLAlchemyError as exc:
                 raise ConversationPersistenceError() from exc
@@ -710,6 +758,8 @@ class SQLAlchemyConversationRepository:
     def _request(row: AgentRequestRow) -> AgentRequestRecord:
         return AgentRequestRecord(
             request_key=row.request_key,
+            request_id=row.request_id,
+            request_summary=row.request_summary,
             fingerprint=row.fingerprint,
             conversation_id=row.conversation_id,
             status=row.status,  # type: ignore[arg-type]
