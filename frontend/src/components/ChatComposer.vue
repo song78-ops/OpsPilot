@@ -66,7 +66,7 @@ defineExpose({ focus })
         rows="1"
         aria-label="输入问题"
         data-testid="chat-input"
-        placeholder="输入你的问题，Enter 发送，Shift + Enter 换行"
+        placeholder="输入你的问题，Enter 发送"
         @input="handleInput"
         @keydown="handleKeydown"
       />
@@ -75,7 +75,7 @@ defineExpose({ focus })
         <span class="composer-hint">
           <span class="hint-dot" />
           <template v-if="isGenerating">正在组织回答，可随时停止</template>
-          <template v-else>Enter 发送 · Shift + Enter 换行</template>
+          <template v-else>Enter 快速发送 · Shift + Enter 换行</template>
         </span>
 
         <div class="composer-actions">
@@ -118,7 +118,7 @@ defineExpose({ focus })
     </div>
 
     <p class="privacy-note">
-      OpsPilot 只把当前问题发送给服务端模型，API Key 不会进入浏览器。
+      AI 生成内容仅供参考，重要信息请结合原始资料核对。
     </p>
   </div>
 </template>

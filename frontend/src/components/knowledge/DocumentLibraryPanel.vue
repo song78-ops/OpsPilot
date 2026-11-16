@@ -36,11 +36,11 @@ const pendingFile = ref<File | null>(null)
 const isDragging = ref(false)
 
 const statuses: Record<DocumentIndexState, { label: string; type: 'info' | 'success' | 'warning' | 'danger' }> = {
-  unknown: { label: '索引状态不可知', type: 'info' },
-  not_indexed: { label: '尚未索引', type: 'warning' },
-  indexing: { label: '索引中', type: 'warning' },
-  indexed: { label: '本次已索引', type: 'success' },
-  error: { label: '索引失败', type: 'danger' },
+  unknown: { label: '已上传', type: 'info' },
+  not_indexed: { label: '未加入', type: 'warning' },
+  indexing: { label: '处理中', type: 'warning' },
+  indexed: { label: '可查询', type: 'success' },
+  error: { label: '处理失败', type: 'danger' },
 }
 
 function chooseFile() {
@@ -104,8 +104,8 @@ function formatDate(value: string): string {
   <section class="library-panel">
     <header class="panel-heading">
       <div>
-        <span class="panel-kicker">KNOWLEDGE CORPUS</span>
-        <h2>文档库</h2>
+        <h2>企业资料</h2>
+        <p>上传后可在右侧直接提问</p>
       </div>
       <ElButton
         class="icon-button"
@@ -153,9 +153,9 @@ function formatDate(value: string): string {
         </span>
       </template>
       <template v-else>
-        <strong>拖入文档，或点击选择文件</strong>
+        <strong>上传一份企业资料</strong>
         <span class="upload-hint">
-          PDF / DOCX / TXT / Markdown · 前端限制 {{ Math.round(maxFileBytes / 1024 / 1024) }} MiB
+          支持 PDF、Word、TXT 和 Markdown，最大 {{ Math.round(maxFileBytes / 1024 / 1024) }} MiB
         </span>
       </template>
 
@@ -204,7 +204,7 @@ function formatDate(value: string): string {
         data-testid="index-selected-button"
         @click="indexSelected"
       >
-        索引所选
+        加入知识库
       </ElButton>
     </div>
 
@@ -235,10 +235,8 @@ function formatDate(value: string): string {
         <div class="document-main">
           <strong :title="document.filename">{{ document.filename }}</strong>
           <span>
-            {{ formatSize(document.file_size) }} · {{ document.chunk_count }} chunks
-            · {{ formatDate(document.uploaded_at) }}
+            {{ formatSize(document.file_size) }} · {{ formatDate(document.uploaded_at) }}
           </span>
-          <code :title="document.document_id">{{ document.document_id }}</code>
           <ElTag
             size="small"
             effect="plain"
@@ -250,10 +248,6 @@ function formatDate(value: string): string {
       </article>
     </div>
 
-    <p class="status-note">
-      文档接口不返回持久化索引状态；“本次已索引”仅表示当前页面刚收到成功响应。
-      刷新后状态显示为不可知，需要以检索结果为准。
-    </p>
   </section>
 </template>
 
@@ -276,18 +270,17 @@ function formatDate(value: string): string {
   justify-content: space-between;
 }
 
-.panel-kicker {
-  color: #79918d;
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-}
-
 .panel-heading h2 {
   margin: 4px 0 0;
   color: #173f3b;
   font-size: 20px;
   font-weight: 650;
+}
+
+.panel-heading p {
+  margin: 3px 0 0;
+  color: #849692;
+  font-size: 10px;
 }
 
 .icon-button {
@@ -480,17 +473,6 @@ function formatDate(value: string): string {
   font-size: 8px;
 }
 
-.document-main code {
-  display: block;
-  max-width: 100%;
-  margin-top: 4px;
-  overflow: hidden;
-  color: #8a9c98;
-  font-size: 8px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .document-main :deep(.el-tag) {
   height: 18px;
   margin-top: 6px;
@@ -504,15 +486,6 @@ function formatDate(value: string): string {
   color: #8c9f9b;
   font-size: 10px;
   text-align: center;
-}
-
-.status-note {
-  margin: 10px 0 0;
-  padding-top: 9px;
-  color: #94a39f;
-  border-top: 1px solid #edf2f0;
-  font-size: 8px;
-  line-height: 1.55;
 }
 
 @media (max-width: 760px) {

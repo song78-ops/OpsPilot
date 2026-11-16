@@ -44,7 +44,7 @@ describe('useKnowledgeBase', () => {
     expect(result?.document_id).toBe(summary.document_id)
     expect(knowledge.documents.value).toHaveLength(1)
     expect(knowledge.indexStates[summary.document_id]).toBe('not_indexed')
-    expect(knowledge.notice.value).toContain('尚未建立检索索引')
+    expect(knowledge.notice.value).toContain('可加入知识库')
   })
 
   it('only claims indexed after an index API success', async () => {
@@ -63,7 +63,7 @@ describe('useKnowledgeBase', () => {
 
     expect(indexDocument).toHaveBeenCalledWith(summary.document_id)
     expect(knowledge.indexStates[summary.document_id]).toBe('indexed')
-    expect(knowledge.notice.value).toContain('本次索引请求已完成')
+    expect(knowledge.notice.value).toContain('现在可以查找')
   })
 
   it('rejects unsupported and oversized files before network access', async () => {

@@ -17,18 +17,18 @@ const note = ref('')
 
 const labels = {
   request: {
-    title: '提交工单草稿审批',
-    description: '提交后 LangGraph 会暂停，草稿将进入 pending_approval，审批完成前不能修改。',
+    title: '提交工单审批',
+    description: '提交后工单将进入待审批状态，审批完成前不能修改。',
     confirm: '确认提交审批',
   },
   approve: {
-    title: '批准工单草稿',
-    description: '批准是本地演示中的真实数据库写入，后端会恢复 Checkpoint 并更新最终状态。',
-    confirm: '确认批准',
+    title: '通过这份工单',
+    description: '确认后工单状态将更新为已批准。',
+    confirm: '确认通过',
   },
   reject: {
-    title: '拒绝工单草稿',
-    description: '拒绝后草稿进入 rejected，不能再次提交同一审批流程。',
+    title: '拒绝这份工单',
+    description: '拒绝后工单状态将更新为已拒绝，不能再次提交同一审批流程。',
     confirm: '确认拒绝',
   },
 }
@@ -61,7 +61,6 @@ function confirm() {
         aria-modal="true"
         aria-labelledby="approval-dialog-title"
       >
-        <span class="dialog-kicker">LOCAL HUMAN REVIEW</span>
         <h2 id="approval-dialog-title">{{ labels[action].title }}</h2>
         <p class="draft-name">{{ draftTitle }}</p>
         <p class="dialog-copy">{{ labels[action].description }}</p>
@@ -124,15 +123,8 @@ function confirm() {
   box-shadow: 0 26px 80px rgb(10 45 41 / 24%);
 }
 
-.dialog-kicker {
-  color: #78938e;
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.17em;
-}
-
 .confirm-dialog h2 {
-  margin: 5px 0 0;
+  margin: 0;
   color: #173f3b;
   font-size: 20px;
 }

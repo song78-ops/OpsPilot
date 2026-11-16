@@ -32,10 +32,10 @@ const emit = defineEmits<{
 
 const timelineViewport = ref<HTMLElement | null>(null)
 const examples = [
-  'Redis 缓存击穿应该怎么解决？',
-  '帮我创建电脑无法联网的维修工单。',
-  '你好，介绍一下你自己。',
-  '帮我处理一下这个问题。',
+  '电脑无法连接公司网络',
+  '打印机无法正常打印',
+  '查看刚才那个工单',
+  '把刚才的工单改成无法连接 Wi-Fi',
 ]
 
 function handleInput(event: Event) {
@@ -83,18 +83,19 @@ watch(
   <section class="assistant-panel">
     <header class="panel-heading">
       <div>
-        <span class="panel-kicker">LANGGRAPH SUPERVISOR</span>
         <h2 data-testid="agent-conversation-title">
-          {{ currentConversationTitle || '新会话' }}
+          {{ currentConversationTitle || '新对话' }}
         </h2>
         <p>
           <template v-if="currentConversationId">
-            <code data-testid="agent-current-conversation-id">
-              {{ currentConversationId }}
-            </code>
+            <span>可以继续追问或修改刚才的工单</span>
+            <span
+              class="visually-hidden"
+              data-testid="agent-current-conversation-id"
+            >{{ currentConversationId }}</span>
           </template>
           <template v-else>
-            首次发送后由后端生成 conversation_id
+            描述问题后，工单助手会帮你整理成工单
           </template>
         </p>
       </div>
@@ -104,7 +105,7 @@ watch(
         class="session-tag"
         :class="{ 'session-tag--new': !currentConversationId }"
       >
-        {{ currentConversationId ? '持久会话' : '新会话' }}
+        {{ currentConversationId ? '可继续对话' : '新对话' }}
       </ElTag>
     </header>
 
@@ -140,14 +141,14 @@ watch(
         :value="question"
         rows="4"
         maxlength="4000"
-        placeholder="例如：帮我创建一个电脑无法连接公司网络的维修工单…"
+        placeholder="例如：办公电脑无法连接公司 Wi-Fi，请帮我创建工单…"
         data-testid="agent-input"
         :disabled="isRunning || isLoadingHistory"
         @input="handleInput"
         @keydown="handleKeydown"
       />
       <div class="composer-footer">
-        <span>Ctrl + Enter 提交 · 同一 conversation_id 自动延续</span>
+        <span>Ctrl + Enter 快速发送</span>
         <ElButton
           type="primary"
           native-type="button"
@@ -156,7 +157,7 @@ watch(
           data-testid="agent-run"
           @click="submit"
         >
-          运行 Agent
+          发送
         </ElButton>
       </div>
     </div>
@@ -185,16 +186,9 @@ watch(
   gap: 10px;
 }
 
-.panel-kicker {
-  color: #73928c;
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-}
-
 .panel-heading h2 {
   max-width: 290px;
-  margin: 4px 0 3px;
+  margin: 0 0 4px;
   overflow: hidden;
   color: #173f3b;
   font-size: 19px;
@@ -209,13 +203,9 @@ watch(
   margin: 0;
   overflow: hidden;
   color: #849692;
-  font-size: 8px;
+  font-size: 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.panel-heading code {
-  font-size: 7px;
 }
 
 .session-tag {
@@ -223,7 +213,7 @@ watch(
   color: #227368;
   background: #f0fcf8;
   border-color: #c8eae2;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .session-tag--new {
@@ -242,12 +232,12 @@ watch(
 
 .example-row button {
   flex: 0 0 auto;
-  padding: 5px 8px;
+  padding: 6px 9px;
   color: #5f7d78;
   background: #f7faf9;
   border: 1px solid #dfe9e6;
   border-radius: 999px;
-  font-size: 8px;
+  font-size: 10px;
   cursor: pointer;
 }
 
@@ -266,7 +256,7 @@ watch(
   margin-top: 7px;
   padding: 8px 10px;
   border-radius: 9px;
-  font-size: 8px;
+  font-size: 10px;
   line-height: 1.5;
 }
 
@@ -307,7 +297,7 @@ watch(
   border: 0;
   outline: 0;
   font: inherit;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.65;
 }
 
@@ -320,15 +310,26 @@ watch(
 
 .composer-footer span {
   color: #98a6a2;
-  font-size: 7px;
+  font-size: 9px;
 }
 
 .composer-footer :deep(.el-button) {
-  height: 29px;
+  height: 32px;
   color: #fff;
   background: #0f766e;
   border-color: #0f766e;
   border-radius: 9px;
-  font-size: 9px;
+  font-size: 11px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 </style>

@@ -166,7 +166,7 @@ export function useTicketWorkspace() {
   async function focusAgentDraft(draft: TicketDraft) {
     await refreshDrafts()
     await selectDraft(draft.id)
-    notice.value = `已同步 Agent 返回的草稿“${draft.title}”。`
+    notice.value = `已打开工单助手返回的“${draft.title}”。`
   }
 
   async function updateSelected(payload: TicketDraftUpdateRequest) {
@@ -182,7 +182,7 @@ export function useTicketWorkspace() {
       const refreshed = await getTicketDraft(draft.id)
       selectedDraft.value = refreshed
       await refreshDrafts()
-      notice.value = '草稿修改已由后端确认。'
+      notice.value = '工单修改已保存。'
       return refreshed
     } catch (caught) {
       error.value = errorMessage(caught)
@@ -204,7 +204,7 @@ export function useTicketWorkspace() {
       const response = await requestTicketApproval(draft.id)
       applyApproval(response)
       await refreshDrafts()
-      notice.value = '审批流程已创建，LangGraph 正在等待人工决定。'
+      notice.value = '审批已提交，正在等待审批人处理。'
       return response
     } catch (caught) {
       error.value = errorMessage(caught)
@@ -277,8 +277,8 @@ export function useTicketWorkspace() {
       }
       await refreshDrafts()
       notice.value = decision === 'approve'
-        ? '审批已批准，后端状态和审批流程均已重新确认。'
-        : '审批已拒绝，后端状态和审批流程均已重新确认。'
+        ? '审批已完成，工单状态为已批准。'
+        : '审批已完成，工单状态为已拒绝。'
       return refreshedApproval
     } catch (caught) {
       error.value = errorMessage(caught)

@@ -35,7 +35,7 @@ async function openAgent(page) {
   await page.goto(baseUrl, { waitUntil: 'networkidle' })
   await page.getByTestId('nav-agent').click()
   await page.getByRole('heading', {
-    name: 'Agent 智能助手',
+    name: '工单助手',
     level: 1,
   }).waitFor()
 }
@@ -160,14 +160,15 @@ try {
     )
     await page.getByTestId('ticket-save').click()
     await page.getByTestId('ticket-notice').waitFor()
-    await page.getByTestId('ticket-notice').getByText(/后端确认/).waitFor()
+    await page.getByTestId('ticket-notice').getByText(/工单修改已保存/).waitFor()
 
     await page.getByTestId('ticket-request-approval').click()
     await confirmApprovalAction(page)
-    await page.getByTestId('ticket-status').getByText('等待审批').waitFor()
-    const threadId = (
-      await page.locator('.thread-id code').innerText()
-    ).trim()
+    await page.getByTestId('ticket-status').getByText('待审批').waitFor()
+    const threadId = await page.evaluate(
+      ({ key, id }) => JSON.parse(localStorage.getItem(key) ?? '{}')[id],
+      { key: storageKey, id: draftId },
+    )
     assert.match(threadId, /^[0-9a-f]{32}$/)
 
     const persisted = await fetchApproval(page, threadId)
@@ -202,12 +203,12 @@ try {
     )
     await page.getByTestId('nav-agent').click()
     await page.getByRole('heading', {
-      name: 'Agent 智能助手',
+      name: '工单助手',
       level: 1,
     }).waitFor()
     await openDraft(page, state.draftId)
 
-    await page.getByTestId('ticket-status').getByText('等待审批').waitFor()
+    await page.getByTestId('ticket-status').getByText('待审批').waitFor()
     const recoveredCache = await page.evaluate(
       (key) => localStorage.getItem(key),
       storageKey,
@@ -217,7 +218,6 @@ try {
       state.threadId,
     )
     await page.getByTestId('ticket-refresh-approval').click()
-    await page.getByText('Checkpoint 下一节点：').waitFor()
     const recovered = await fetchApproval(page, state.threadId)
     assert.equal(recovered.waiting_for_decision, true)
     assert.deepEqual(recovered.checkpoint_next, ['await_decision'])
@@ -229,7 +229,7 @@ try {
     await page.getByTestId('ticket-approve').click()
     await confirmApprovalAction(page, '浏览器 E2E 批准')
     await page.getByTestId('ticket-status').getByText('已批准').waitFor()
-    await page.getByTestId('ticket-notice').getByText(/重新确认/).waitFor()
+    await page.getByTestId('ticket-notice').getByText(/已批准/).waitFor()
 
     const approved = await fetchApproval(page, state.threadId)
     assert.equal(approved.approval.status, 'approved')
@@ -247,15 +247,16 @@ try {
     )
     await page.getByTestId('ticket-request-approval').click()
     await confirmApprovalAction(page)
-    await page.getByTestId('ticket-status').getByText('等待审批').waitFor()
-    const secondThreadId = (
-      await page.locator('.thread-id code').innerText()
-    ).trim()
+    await page.getByTestId('ticket-status').getByText('待审批').waitFor()
+    const secondThreadId = await page.evaluate(
+      ({ key, id }) => JSON.parse(localStorage.getItem(key) ?? '{}')[id],
+      { key: storageKey, id: secondDraftId },
+    )
 
     await page.getByTestId('ticket-reject').click()
     await confirmApprovalAction(page, '浏览器 E2E 拒绝')
     await page.getByTestId('ticket-status').getByText('已拒绝').waitFor()
-    await page.getByTestId('ticket-notice').getByText(/重新确认/).waitFor()
+    await page.getByTestId('ticket-notice').getByText(/已拒绝/).waitFor()
     const rejected = await fetchApproval(page, secondThreadId)
     assert.equal(rejected.approval.status, 'rejected')
     assert.equal(rejected.draft.status, 'rejected')

@@ -7,9 +7,8 @@ import {
   ref,
   watch,
 } from 'vue'
-import { ElButton, ElTag } from 'element-plus'
+import { ElButton } from 'element-plus'
 import 'element-plus/es/components/button/style/css'
-import 'element-plus/es/components/tag/style/css'
 
 import ChatComposer from './components/ChatComposer.vue'
 import ChatMessageBubble from './components/ChatMessageBubble.vue'
@@ -34,9 +33,9 @@ const actionError = ref('')
 let scrollFrame = 0
 
 const suggestions = [
-  '如何评估一个 RAG 系统的检索质量？',
-  '企业知识库 Agent 应该如何设计工具边界？',
-  '帮我梳理一个 AI 应用开发实习项目亮点',
+  '帮我整理本周工作汇报的要点',
+  '起草一封项目进度同步邮件',
+  '把这段会议记录总结成待办事项',
 ]
 
 function scheduleScrollToBottom() {
@@ -113,7 +112,7 @@ onBeforeUnmount(() => {
         </div>
         <div>
           <strong>OpsPilot</strong>
-          <small>AI OPERATIONS COPILOT</small>
+          <small>企业智能办公助手</small>
         </div>
       </div>
 
@@ -147,7 +146,7 @@ onBeforeUnmount(() => {
                 d="M5 3.75A1.75 1.75 0 0 1 6.75 2h10.5A1.75 1.75 0 0 1 19 3.75v16.5a1.75 1.75 0 0 1-1.75 1.75H6.75A1.75 1.75 0 0 1 5 20.25V3.75Zm3.2 2.3v2h7.6v-2H8.2Zm0 4v2h7.6v-2H8.2Zm0 4v2h5.2v-2H8.2Z"
               />
             </svg>
-            <span>知识库问答</span>
+            <span>企业知识库</span>
             <span v-if="activeView === 'knowledge'" class="nav-pulse" />
           </button>
           <button
@@ -162,79 +161,23 @@ onBeforeUnmount(() => {
                 d="M7 3h10a2 2 0 0 1 2 2v3h1.25a.75.75 0 0 1 0 1.5H19v4h1.25a.75.75 0 0 1 0 1.5H19V19a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-3H3.75a.75.75 0 0 1 0-1.5H5v-4H3.75a.75.75 0 0 1 0-1.5H5V5a2 2 0 0 1 2-2Zm2 4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1H9Zm1 3.25h4v1.5h-4v-1.5Zm0 3h2.75v1.5H10v-1.5Z"
               />
             </svg>
-            <span>Agent 助手</span>
+            <span>工单助手</span>
             <span v-if="activeView === 'agent'" class="nav-pulse" />
           </button>
         </nav>
       </div>
 
-      <div class="sidebar-card">
-        <div class="card-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24">
-            <path
-              d="m12 2.5 2.2 5.45 5.8 2.3-5.8 2.3L12 18l-2.2-5.45-5.8-2.3 5.8-2.3L12 2.5Zm6.8 12.1 1.05 2.6 2.65 1.05-2.65 1.05-1.05 2.6-1.05-2.6-2.65-1.05 2.65-1.05 1.05-2.6Z"
-            />
-          </svg>
-        </div>
-        <p>
-          {{
-            activeView === 'chat'
-              ? '面向企业知识场景的 AI 助手'
-              : activeView === 'knowledge'
-                ? '检索增强的企业知识工作台'
-                : '从自然语言到工单审批的 Agent 工作台'
-          }}
-        </p>
-        <span>
-          {{
-            activeView === 'chat'
-              ? '支持 DeepSeek 实时流式问答'
-              : activeView === 'knowledge'
-                ? 'Hybrid 检索 · 引用校验 · 证据不足拒答'
-                : 'Supervisor 路由 · Tool Calling · Human-in-the-loop'
-          }}
-        </span>
-      </div>
-
       <div class="sidebar-spacer" />
-
-      <div class="session-note">
-        <span class="session-note__dot" />
-        <div>
-          <strong>
-            {{
-              activeView === 'chat'
-                ? '当前为单轮问答'
-                : activeView === 'knowledge'
-                  ? '问答与索引状态仅保留在本页'
-                  : '工单与审批使用真实本地持久化'
-            }}
-          </strong>
-          <p>
-            {{
-              activeView === 'agent'
-                ? '审批仅用于 localhost 本地演示'
-                : '不提供服务端会话或索引状态持久化承诺'
-            }}
-          </p>
-        </div>
-      </div>
-
-      <p class="version">OpsPilot · Phase 6 Preview</p>
     </aside>
 
     <main v-if="activeView === 'chat'" class="chat-panel">
       <header class="topbar">
         <div>
-          <p class="eyebrow">AI ASSISTANT</p>
           <h1>智能问答</h1>
+          <p class="topbar-copy">快速处理写作、总结与日常办公问题</p>
         </div>
 
         <div class="topbar-actions">
-          <ElTag round effect="plain" class="stream-tag">
-            <span class="live-dot" />
-            流式响应
-          </ElTag>
           <ElButton
             class="clear-button"
             text
@@ -269,11 +212,9 @@ onBeforeUnmount(() => {
               </div>
             </div>
 
-            <p class="welcome-kicker">WELCOME TO OPSPILOT</p>
-            <h2>让企业知识，<br />成为可对话的生产力。</h2>
+            <h2>今天需要我帮你处理什么？</h2>
             <p class="welcome-copy">
-              输入问题，即可获得由 DeepSeek 实时生成的回答。
-              当前阶段只把本条问题发送给服务端，不会声称拥有服务端会话记忆。
+              输入你的问题，OpsPilot 会给出清晰、易读的回答。
             </p>
 
             <div class="suggestion-grid">
@@ -391,9 +332,9 @@ onBeforeUnmount(() => {
   display: block;
   margin-top: 3px;
   color: #759b96;
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.15em;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 .sidebar-label {
@@ -584,6 +525,12 @@ onBeforeUnmount(() => {
   letter-spacing: -0.035em;
 }
 
+.topbar-copy {
+  margin: 4px 0 0;
+  color: #7e918d;
+  font-size: 11px;
+}
+
 .topbar-actions {
   display: flex;
   align-items: center;
@@ -714,14 +661,6 @@ onBeforeUnmount(() => {
   transform: rotate(5deg);
 }
 
-.welcome-kicker {
-  margin: 0 0 10px;
-  color: #75938e;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-}
-
 .welcome h2 {
   margin: 0;
   color: #173c39;
@@ -736,7 +675,7 @@ onBeforeUnmount(() => {
   max-width: 570px;
   margin: 15px auto 0;
   color: #728681;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.8;
 }
 

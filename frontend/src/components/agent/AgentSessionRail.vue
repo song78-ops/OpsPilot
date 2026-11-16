@@ -31,8 +31,7 @@ function formatDate(value: string): string {
   <aside class="session-rail">
     <header class="rail-heading">
       <div>
-        <span>AGENT SESSIONS</span>
-        <h2>会话</h2>
+        <h2>历史会话</h2>
       </div>
       <ElButton
         circle
@@ -63,7 +62,7 @@ function formatDate(value: string): string {
         正在读取会话…
       </div>
       <div v-else-if="conversations.length === 0" class="rail-empty">
-        还没有历史会话。首次发送消息后由后端创建。
+        暂无历史会话，新建后即可开始咨询。
       </div>
 
       <button
@@ -83,14 +82,9 @@ function formatDate(value: string): string {
         <span class="session-copy">
           <strong>{{ conversation.title }}</strong>
           <small>{{ formatDate(conversation.updated_at) }}</small>
-          <code>{{ conversation.conversation_id }}</code>
         </span>
       </button>
     </div>
-
-    <p class="rail-note">
-      消息正文只从服务端加载。本地仅缓存最近使用的 conversation_id。
-    </p>
   </aside>
 </template>
 
@@ -115,17 +109,10 @@ function formatDate(value: string): string {
   gap: 8px;
 }
 
-.rail-heading span {
-  color: #79a59d;
-  font-size: 7px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-}
-
 .rail-heading h2 {
-  margin: 4px 0 0;
+  margin: 0;
   color: #ecfdf9;
-  font-size: 17px;
+  font-size: 18px;
 }
 
 .rail-heading :deep(.el-button) {
@@ -170,7 +157,7 @@ function formatDate(value: string): string {
   place-items: center;
   padding: 16px;
   color: #7faaa2;
-  font-size: 8px;
+  font-size: 11px;
   line-height: 1.65;
   text-align: center;
 }
@@ -227,8 +214,7 @@ function formatDate(value: string): string {
 }
 
 .session-copy strong,
-.session-copy small,
-.session-copy code {
+.session-copy small {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -237,48 +223,33 @@ function formatDate(value: string): string {
 
 .session-copy strong {
   color: #dff4f0;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .session-copy small {
   margin-top: 3px;
   color: #739c95;
-  font-size: 7px;
-}
-
-.session-copy code {
-  margin-top: 3px;
-  color: #5f8780;
-  font-size: 6px;
-}
-
-.rail-note {
-  margin: 9px 2px 0;
-  padding-top: 9px;
-  color: #668e87;
-  border-top: 1px solid rgb(255 255 255 / 6%);
-  font-size: 7px;
-  line-height: 1.55;
+  font-size: 9px;
 }
 
 @media (max-width: 900px) {
   .session-rail {
-    min-height: 190px;
+    min-height: 148px;
+    padding: 12px;
   }
 
   .session-list {
     display: flex;
     gap: 6px;
+    margin-top: 7px;
     overflow-x: auto;
     overflow-y: hidden;
   }
 
   .session-item {
     flex: 0 0 170px;
+    padding-block: 7px;
   }
 
-  .rail-note {
-    display: none;
-  }
 }
 </style>

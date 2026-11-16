@@ -77,14 +77,10 @@ const statusLabel = computed(() => {
       </div>
 
       <div
-        v-if="!isUser && (message.usage || statusLabel)"
+        v-if="!isUser && statusLabel"
         class="message-meta"
       >
         <span v-if="statusLabel">{{ statusLabel }}</span>
-        <span v-if="message.usage">
-          输入 {{ message.usage.prompt_tokens }} · 输出
-          {{ message.usage.completion_tokens }} tokens
-        </span>
       </div>
     </div>
 
@@ -122,8 +118,7 @@ const statusLabel = computed(() => {
   color: var(--ink-muted);
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0;
 }
 
 .avatar {

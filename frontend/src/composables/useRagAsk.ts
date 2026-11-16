@@ -20,7 +20,7 @@ function errorMessage(error: unknown): string {
   if (error instanceof KnowledgeApiError) {
     return error.message
   }
-  return error instanceof Error ? error.message : '知识库问答失败，请稍后重试。'
+  return error instanceof Error ? error.message : '企业知识查找失败，请稍后重试。'
 }
 
 export function useRagAsk() {
@@ -40,7 +40,7 @@ export function useRagAsk() {
       return
     }
     if (!Number.isInteger(topK.value) || topK.value < 1 || topK.value > 20) {
-      error.value = 'Top-K 必须是 1 到 20 之间的整数。'
+      error.value = '返回结果数量必须是 1 到 20 之间的整数。'
       return
     }
     if (
@@ -51,7 +51,7 @@ export function useRagAsk() {
         || candidateK.value > 20
       )
     ) {
-      error.value = '精排候选数必须不少于 Top-K，并且不超过 20。'
+      error.value = '精排候选数量必须不少于返回结果数量，并且不超过 20。'
       return
     }
 

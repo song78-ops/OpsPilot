@@ -133,7 +133,7 @@ describe('knowledge API', () => {
       name: 'KnowledgeApiError',
       status: 409,
       code: 'DOCUMENT_NOT_INDEXED',
-      message: expect.stringContaining('尚未建立索引'),
+      message: expect.stringContaining('尚未加入知识库'),
     })
   })
 })

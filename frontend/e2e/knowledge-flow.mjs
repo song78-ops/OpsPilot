@@ -67,7 +67,7 @@ try {
   await documentRow.waitFor({ timeout: 60_000 })
   await documentRow.locator('input[type="checkbox"]').check()
   await page.getByTestId('index-selected-button').click()
-  await documentRow.getByText('本次已索引').waitFor({ timeout: 180_000 })
+  await documentRow.getByText('可查询').waitFor({ timeout: 180_000 })
 
   await page.getByTestId('rag-question-input').fill(
     '文档中缓存击穿有哪些处理方法？',

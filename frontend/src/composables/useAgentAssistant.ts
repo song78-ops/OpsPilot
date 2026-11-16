@@ -35,7 +35,7 @@ function errorMessage(error: unknown): string {
   if (error instanceof AgentApiError) {
     return error.message
   }
-  return error instanceof Error ? error.message : 'Agent 请求失败，请稍后重试。'
+  return error instanceof Error ? error.message : '工单助手请求失败，请稍后重试。'
 }
 
 function readLastConversationId(): string | null {
@@ -197,7 +197,7 @@ export function useAgentAssistant() {
     question.value = ''
     pendingRequest = null
     error.value = ''
-    notice.value = '新会话将在首次发送消息时由后端创建。'
+    notice.value = '发送第一条消息后，将自动创建新对话。'
     clearLastConversationId()
   }
 
@@ -230,7 +230,7 @@ export function useAgentAssistant() {
         requestId,
       )
       if (!response.conversation_id) {
-        throw new Error('后端未返回 conversation_id。')
+        throw new Error('对话创建失败，请稍后重试。')
       }
 
       pendingRequest = null
@@ -244,7 +244,7 @@ export function useAgentAssistant() {
         false,
       )
       if (!history) {
-        error.value = 'Agent 请求已完成，但会话历史刷新失败。'
+        error.value = '处理已完成，但对话记录刷新失败。'
         return response
       }
       await fetchConversations()
@@ -254,7 +254,7 @@ export function useAgentAssistant() {
         )?.title
         ?? '当前会话'
       )
-      notice.value = '消息已由服务端持久化。'
+      notice.value = '消息已保存，可以继续提问。'
       return response
     } catch (caught) {
       error.value = errorMessage(caught)

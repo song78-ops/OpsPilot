@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { ElTag } from 'element-plus'
-import 'element-plus/es/components/tag/style/css'
 
 import DocumentLibraryPanel from '../components/knowledge/DocumentLibraryPanel.vue'
 import RagAskPanel from '../components/knowledge/RagAskPanel.vue'
@@ -34,20 +32,10 @@ onMounted(() => {
   <main class="knowledge-page">
     <header class="knowledge-header">
       <div>
-        <p class="eyebrow">KNOWLEDGE WORKSPACE</p>
         <h1>企业知识库</h1>
         <p class="knowledge-subtitle">
-          上传资料、建立混合索引，并获得带真实引用的 RAG 回答。
+          上传公司资料，快速查找答案并查看引用来源。
         </p>
-      </div>
-      <div class="header-badges">
-        <ElTag round effect="plain" class="header-tag">
-          <span class="ready-dot" />
-          Dense + BM25
-        </ElTag>
-        <ElTag round effect="plain" class="header-tag header-tag--muted">
-          非流式 RAG
-        </ElTag>
       </div>
     </header>
 
@@ -112,14 +100,6 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 
-.eyebrow {
-  margin: 0 0 3px;
-  color: #76908b;
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-}
-
 .knowledge-header h1 {
   margin: 0;
   color: #153c38;
@@ -133,35 +113,6 @@ onMounted(() => {
   margin: 5px 0 0;
   color: #7d918c;
   font-size: 10px;
-}
-
-.header-badges {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.header-tag {
-  height: 27px;
-  color: #217268;
-  background: rgb(240 253 250 / 80%);
-  border-color: #bfe8df;
-  font-size: 9px;
-}
-
-.header-tag--muted {
-  color: #69817c;
-  background: rgb(255 255 255 / 70%);
-  border-color: #dce6e3;
-}
-
-.ready-dot {
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  margin-right: 4px;
-  border-radius: 50%;
-  background: #14b8a6;
 }
 
 .knowledge-grid {
@@ -184,14 +135,17 @@ onMounted(() => {
     flex: none;
     grid-template-columns: 1fr;
   }
+
+  :deep(.rag-panel) {
+    order: 1;
+  }
+
+  :deep(.library-panel) {
+    order: 2;
+  }
 }
 
 @media (max-width: 620px) {
-  .knowledge-header {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
   .knowledge-subtitle {
     max-width: 320px;
     line-height: 1.55;

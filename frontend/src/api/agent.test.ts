@@ -269,7 +269,7 @@ describe('agent API', () => {
       name: 'AgentApiError',
       status: 409,
       code: 'TICKET_APPROVAL_STATE_CONFLICT',
-      message: expect.stringContaining('不能重复批准或拒绝'),
+      message: expect.stringContaining('不能重复通过或拒绝'),
     })
   })
 

@@ -88,7 +88,7 @@ export function useKnowledgeBase() {
       const detail = await uploadDocument(file)
       await refresh()
       indexStates[detail.document_id] = 'not_indexed'
-      notice.value = `“${detail.filename}”上传成功，尚未建立检索索引。`
+      notice.value = `“${detail.filename}”上传成功，可加入知识库后查询。`
       return detail
     } catch (caught) {
       error.value = errorMessage(caught)
@@ -112,7 +112,7 @@ export function useKnowledgeBase() {
     }
     const uniqueIds = [...new Set(documentIds)].filter(Boolean)
     if (uniqueIds.length === 0) {
-      error.value = '请先选择需要索引的文档。'
+      error.value = '请先选择需要加入知识库的文档。'
       return []
     }
 
@@ -128,7 +128,7 @@ export function useKnowledgeBase() {
         const result = await indexDocument(documentId)
         results.push(result)
         indexStates[documentId] = 'indexed'
-        notice.value = `本次索引请求已完成：${result.indexed_parts} 个检索单元。`
+        notice.value = `已收录 ${result.indexed_parts} 个内容片段，现在可以查找。`
       } catch (caught) {
         indexStates[documentId] = 'error'
         failures.push(errorMessage(caught))

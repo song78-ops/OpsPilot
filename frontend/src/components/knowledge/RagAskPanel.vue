@@ -35,9 +35,9 @@ const {
 
 const resultViewport = ref<HTMLElement | null>(null)
 const modes: Array<{ value: RetrievalMode; label: string; detail: string }> = [
-  { value: 'dense', label: 'Dense', detail: '语义向量' },
-  { value: 'bm25', label: 'BM25', detail: '关键词' },
-  { value: 'hybrid', label: 'Hybrid', detail: 'RRF 融合' },
+  { value: 'dense', label: '语义检索', detail: '理解相近含义' },
+  { value: 'bm25', label: '关键词检索', detail: '精确匹配词语' },
+  { value: 'hybrid', label: '混合检索', detail: '推荐使用' },
 ]
 
 function handleKeydown(event: KeyboardEvent) {
@@ -63,9 +63,8 @@ watch(
   <section class="rag-panel">
     <header class="rag-heading">
       <div>
-        <span class="rag-kicker">GROUNDED ASSISTANT</span>
-        <h2>知识库问答</h2>
-        <p>回答只依据后端检索证据，并返回可核验引用。</p>
+        <h2>查找企业资料</h2>
+        <p>答案会附带引用来源，便于核对原文。</p>
       </div>
       <ElButton
         v-if="entries.length > 0"
@@ -77,59 +76,67 @@ watch(
       </ElButton>
     </header>
 
-    <div class="settings-row">
-      <div class="mode-switch" role="group" aria-label="检索模式">
-        <button
-          v-for="item in modes"
-          :key="item.value"
-          type="button"
-          :class="{ active: mode === item.value }"
-          :data-testid="`rag-mode-${item.value}`"
-          @click="mode = item.value"
-        >
-          <strong>{{ item.label }}</strong>
-          <span>{{ item.detail }}</span>
-        </button>
+    <details class="advanced-settings">
+      <summary>
+        <span>高级设置</span>
+        <small>默认使用推荐配置</small>
+      </summary>
+      <div class="advanced-content">
+        <div class="settings-row">
+          <div class="mode-switch" role="group" aria-label="检索方式">
+            <button
+              v-for="item in modes"
+              :key="item.value"
+              type="button"
+              :class="{ active: mode === item.value }"
+              :data-testid="`rag-mode-${item.value}`"
+              @click="mode = item.value"
+            >
+              <strong>{{ item.label }}</strong>
+              <span>{{ item.detail }}</span>
+            </button>
+          </div>
+
+          <label class="rerank-toggle">
+            <ElSwitch v-model="rerank" data-testid="rag-rerank-switch" />
+            <span>
+              <strong>结果精排</strong>
+              <small>提高准确度，首次使用稍慢</small>
+            </span>
+          </label>
+        </div>
+
+        <div class="parameter-row">
+          <label>
+            <span>返回结果数量</span>
+            <input v-model.number="topK" type="number" min="1" max="20">
+          </label>
+          <label v-if="rerank">
+            <span>精排候选数量</span>
+            <input
+              v-model.number="candidateK"
+              type="number"
+              :min="topK"
+              max="20"
+              data-testid="rag-candidate-k"
+            >
+          </label>
+          <label class="scope-field">
+            <span>查找范围</span>
+            <select v-model="documentId">
+              <option :value="null">全部企业资料</option>
+              <option
+                v-for="document in props.documents"
+                :key="document.document_id"
+                :value="document.document_id"
+              >
+                {{ document.filename }}
+              </option>
+            </select>
+          </label>
+        </div>
       </div>
-
-      <label class="rerank-toggle">
-        <ElSwitch v-model="rerank" data-testid="rag-rerank-switch" />
-        <span>
-          <strong>CrossEncoder 精排</strong>
-          <small>延迟较高，默认关闭</small>
-        </span>
-      </label>
-    </div>
-
-    <div class="parameter-row">
-      <label>
-        <span>Top-K</span>
-        <input v-model.number="topK" type="number" min="1" max="20">
-      </label>
-      <label v-if="rerank">
-        <span>候选数</span>
-        <input
-          v-model.number="candidateK"
-          type="number"
-          :min="topK"
-          max="20"
-          data-testid="rag-candidate-k"
-        >
-      </label>
-      <label class="scope-field">
-        <span>检索范围</span>
-        <select v-model="documentId">
-          <option :value="null">全部已索引文档</option>
-          <option
-            v-for="document in props.documents"
-            :key="document.document_id"
-            :value="document.document_id"
-          >
-            {{ document.filename }}
-          </option>
-        </select>
-      </label>
-    </div>
+    </details>
 
     <div ref="resultViewport" class="result-viewport">
       <div v-if="entries.length === 0" class="rag-welcome">
@@ -140,8 +147,8 @@ watch(
             />
           </svg>
         </div>
-        <strong>向企业知识库提问</strong>
-        <p>系统会先检索文档，再生成带引用的回答。证据不足时会明确拒答。</p>
+        <strong>查找公司资料中的答案</strong>
+        <p>输入问题后，系统会从已上传资料中查找依据并注明来源。</p>
         <div class="example-questions">
           <span>可以试试：</span>
           <button
@@ -181,13 +188,13 @@ watch(
         v-model="question"
         rows="3"
         maxlength="4000"
-        placeholder="输入需要基于企业知识回答的问题…"
+        placeholder="输入你想从企业资料中查找的问题…"
         data-testid="rag-question-input"
         :disabled="isAsking"
         @keydown="handleKeydown"
       />
       <div class="composer-foot">
-        <span>仅发送当前问题 · Ctrl + Enter 提交</span>
+        <span>Ctrl + Enter 快速查找</span>
         <ElButton
           class="ask-button"
           type="primary"
@@ -197,7 +204,7 @@ watch(
           data-testid="rag-ask-button"
           @click="ask"
         >
-          询问知识库
+          查找答案
         </ElButton>
       </div>
     </div>
@@ -227,15 +234,8 @@ watch(
   gap: 18px;
 }
 
-.rag-kicker {
-  color: #75938e;
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.17em;
-}
-
 .rag-heading h2 {
-  margin: 4px 0 3px;
+  margin: 0 0 3px;
   color: #173f3b;
   font-size: 22px;
   font-weight: 650;
@@ -245,7 +245,35 @@ watch(
 .rag-heading p {
   margin: 0;
   color: #849692;
-  font-size: 10px;
+  font-size: 11px;
+}
+
+.advanced-settings {
+  margin-top: 15px;
+  color: #5b746f;
+  background: #f7faf9;
+  border: 1px solid #e2ebe8;
+  border-radius: 11px;
+}
+
+.advanced-settings > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.advanced-settings > summary small {
+  color: #93a29f;
+  font-size: 9px;
+  font-weight: 400;
+}
+
+.advanced-content {
+  padding: 0 11px 11px;
 }
 
 .settings-row {
@@ -253,7 +281,7 @@ watch(
   align-items: stretch;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 18px;
+  margin-top: 0;
 }
 
 .mode-switch {
@@ -268,7 +296,7 @@ watch(
 
 .mode-switch button {
   display: flex;
-  min-height: 43px;
+  min-height: 47px;
   flex-direction: column;
   justify-content: center;
   padding: 5px 8px;
@@ -291,7 +319,7 @@ watch(
 
 .mode-switch span {
   margin-top: 2px;
-  font-size: 8px;
+  font-size: 9px;
 }
 
 .rerank-toggle {
@@ -312,13 +340,13 @@ watch(
 
 .rerank-toggle strong {
   color: #506c68;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .rerank-toggle small {
   margin-top: 2px;
   color: #94a39f;
-  font-size: 8px;
+  font-size: 9px;
 }
 
 .parameter-row {
@@ -336,7 +364,7 @@ watch(
 
 .parameter-row label > span {
   color: #849692;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .parameter-row input,
@@ -346,7 +374,7 @@ watch(
   background: #fff;
   border: 1px solid #dce7e4;
   border-radius: 8px;
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .parameter-row input {
@@ -414,7 +442,7 @@ watch(
   max-width: 430px;
   margin: 7px 0 0;
   color: #879994;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.7;
 }
 
@@ -515,7 +543,7 @@ watch(
 
 .composer-foot > span {
   color: #98a6a2;
-  font-size: 8px;
+  font-size: 9px;
 }
 
 .ask-button {

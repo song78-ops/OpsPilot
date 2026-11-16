@@ -55,7 +55,7 @@ const statusMeta: Record<
   { label: string; type: 'info' | 'warning' | 'success' | 'danger' }
 > = {
   draft: { label: '草稿', type: 'info' },
-  pending_approval: { label: '等待审批', type: 'warning' },
+  pending_approval: { label: '待审批', type: 'warning' },
   approved: { label: '已批准', type: 'success' },
   rejected: { label: '已拒绝', type: 'danger' },
 }
@@ -166,18 +166,16 @@ function formatDate(value: string | null): string {
   <section class="ticket-panel">
     <header class="ticket-heading">
       <div>
-        <span class="ticket-kicker">PERSISTED TICKET WORKSPACE</span>
-        <h2>工单草稿与审批</h2>
-        <p>所有状态以 SQLite 和 LangGraph Checkpoint 的真实响应为准。</p>
+        <h2>工单与审批</h2>
+        <p>查看工单进度，处理需要审批的事项。</p>
       </div>
-      <ElTag round effect="plain" class="local-tag">LOCAL DEMO</ElTag>
     </header>
 
     <div class="workspace-grid">
       <aside class="draft-queue">
         <header>
           <div>
-            <strong>草稿列表</strong>
+            <strong>工单列表</strong>
             <span>{{ drafts.length }} 条记录</span>
           </div>
           <ElButton
@@ -197,7 +195,7 @@ function formatDate(value: string | null): string {
             正在读取草稿…
           </div>
           <div v-else-if="drafts.length === 0" class="queue-empty">
-            还没有草稿。先在左侧让 Agent 创建一份工单。
+            暂无工单，可以在左侧描述问题后创建。
           </div>
           <button
             v-for="draft in drafts"
@@ -214,7 +212,7 @@ function formatDate(value: string | null): string {
             <span class="row-main">
               <strong>{{ draft.title }}</strong>
               <span>
-                v{{ draft.version }} · {{ formatDate(draft.updated_at) }}
+                更新于 {{ formatDate(draft.updated_at) }}
               </span>
             </span>
             <ElTag
@@ -234,16 +232,14 @@ function formatDate(value: string | null): string {
         </div>
         <div v-else-if="!selectedDraft" class="detail-empty">
           <div class="empty-mark">OP</div>
-          <strong>选择一份工单草稿</strong>
-          <p>可查看详情、编辑 draft 状态草稿，并提交人工审批。</p>
+          <strong>选择一份工单</strong>
+          <p>可以查看内容、修改草稿并提交审批。</p>
         </div>
 
         <template v-else>
           <header class="detail-header">
             <div>
-              <span class="detail-kicker">TICKET DRAFT</span>
               <h3>{{ selectedDraft.title }}</h3>
-              <p><code>{{ selectedDraft.id }}</code></p>
             </div>
             <ElTag
               effect="plain"
@@ -255,7 +251,6 @@ function formatDate(value: string | null): string {
           </header>
 
           <div class="draft-meta">
-            <span>内容版本 v{{ selectedDraft.version }}</span>
             <span>创建 {{ formatDate(selectedDraft.created_at) }}</span>
             <span>更新 {{ formatDate(selectedDraft.updated_at) }}</span>
           </div>
@@ -323,8 +318,8 @@ function formatDate(value: string | null): string {
 
             <div v-if="selectedDraft.status === 'draft'" class="draft-actions">
               <div>
-                <strong>准备提交人工审批</strong>
-                <p>审批暂停后，草稿修改会被后端拒绝，直到人工决策完成。</p>
+                <strong>准备提交审批</strong>
+                <p>提交后工单内容会被锁定，审批完成前不能修改。</p>
               </div>
               <div class="action-buttons">
                 <button
@@ -333,7 +328,7 @@ function formatDate(value: string | null): string {
                   data-testid="ticket-edit-button"
                   @click="startEditing"
                 >
-                  编辑草稿
+                  编辑工单
                 </button>
                 <button
                   type="button"
@@ -354,8 +349,7 @@ function formatDate(value: string | null): string {
             >
               <div class="approval-heading">
                 <div>
-                  <span class="detail-kicker">HUMAN-IN-THE-LOOP</span>
-                  <h4>审批工作流</h4>
+                  <h4>审批进度</h4>
                 </div>
                 <button
                   v-if="selectedThreadId"
@@ -364,7 +358,7 @@ function formatDate(value: string | null): string {
                   data-testid="ticket-refresh-approval"
                   @click="refreshSelectedApproval"
                 >
-                  刷新真实状态
+                  刷新状态
                 </button>
               </div>
 
@@ -374,8 +368,7 @@ function formatDate(value: string | null): string {
                 data-testid="ticket-missing-thread"
               >
                 该草稿处于 {{ statusMeta[selectedDraft.status].label }}，
-                但服务端没有返回可用 thread_id。可能存在审批映射或 Checkpoint
-                不一致，请刷新后检查后端审批数据。
+                审批信息暂时不可用，请刷新后重试。
               </div>
 
               <template v-else>
@@ -385,7 +378,7 @@ function formatDate(value: string | null): string {
                     <dd>{{ statusMeta[selectedDraft.status].label }}</dd>
                   </div>
                   <div>
-                    <dt>等待人工决定</dt>
+                    <dt>等待审批人处理</dt>
                     <dd>{{ approval?.waiting_for_decision ? '是' : '否' }}</dd>
                   </div>
                   <div>
@@ -397,16 +390,6 @@ function formatDate(value: string | null): string {
                     <dd>{{ formatDate(approval?.approval.decided_at ?? null) }}</dd>
                   </div>
                 </dl>
-
-                <div class="thread-id">
-                  <span>thread_id</span>
-                  <code>{{ selectedThreadId }}</code>
-                </div>
-
-                <div v-if="approval?.checkpoint_next.length" class="checkpoint-line">
-                  Checkpoint 下一节点：
-                  <code>{{ approval.checkpoint_next.join(' → ') }}</code>
-                </div>
 
                 <div
                   v-if="approval?.approval.note"
@@ -421,8 +404,7 @@ function formatDate(value: string | null): string {
                   class="decision-actions"
                 >
                   <p>
-                    当前没有正式登录鉴权，这是 localhost 本地演示。
-                    操作会真实恢复 LangGraph Checkpoint。
+                    审批操作仅限本机使用。通过或拒绝后会立即更新工单状态。
                   </p>
                   <div>
                     <button
@@ -441,7 +423,7 @@ function formatDate(value: string | null): string {
                       data-testid="ticket-approve"
                       @click="openConfirmation('approve')"
                     >
-                      批准
+                      通过
                     </button>
                   </div>
                 </div>
@@ -457,8 +439,7 @@ function formatDate(value: string | null): string {
           </div>
 
           <p class="workspace-note">
-            本地演示模式：审批接口没有正式审批人身份、角色或租户校验。
-            thread_id 由服务端审批映射恢复；浏览器 localStorage 仅作为辅助缓存。
+            审批操作仅限本机使用。提交审批后，工单会被锁定直到审批完成。
           </p>
         </template>
       </section>
@@ -496,14 +477,6 @@ function formatDate(value: string | null): string {
   gap: 14px;
 }
 
-.ticket-kicker,
-.detail-kicker {
-  color: #748e89;
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.15em;
-}
-
 .ticket-heading h2 {
   margin: 4px 0 3px;
   color: #173f3b;
@@ -514,15 +487,7 @@ function formatDate(value: string | null): string {
 .ticket-heading p {
   margin: 0;
   color: #859793;
-  font-size: 9px;
-}
-
-.local-tag {
-  height: 25px;
-  color: #8a6427;
-  background: #fff8e8;
-  border-color: #ead9b6;
-  font-size: 8px;
+  font-size: 11px;
 }
 
 .workspace-grid {
@@ -563,13 +528,13 @@ function formatDate(value: string | null): string {
 
 .draft-queue > header strong {
   color: #3c5d58;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .draft-queue > header span {
   margin-top: 2px;
   color: #96a5a2;
-  font-size: 8px;
+  font-size: 9px;
 }
 
 .draft-list {
@@ -647,18 +612,18 @@ function formatDate(value: string | null): string {
 
 .row-main strong {
   color: #365852;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .row-main > span {
   margin-top: 3px;
   color: #93a29f;
-  font-size: 7px;
+  font-size: 9px;
 }
 
 .draft-row :deep(.el-tag) {
   height: 18px;
-  font-size: 7px;
+  font-size: 9px;
 }
 
 .draft-detail {
@@ -710,18 +675,13 @@ function formatDate(value: string | null): string {
 }
 
 .detail-header h3 {
-  margin: 4px 0 4px;
+  margin: 0 0 4px;
   color: #193f3a;
-  font-size: 17px;
+  font-size: 18px;
 }
 
 .detail-header p {
   margin: 0;
-}
-
-.detail-header code {
-  color: #96a5a2;
-  font-size: 8px;
 }
 
 .detail-header :deep(.el-tag) {
@@ -741,7 +701,7 @@ function formatDate(value: string | null): string {
   color: #7c918c;
   background: #f5f9f8;
   border-radius: 6px;
-  font-size: 8px;
+  font-size: 9px;
 }
 
 .draft-fields,
@@ -761,13 +721,13 @@ function formatDate(value: string | null): string {
 .draft-fields dt,
 .approval-grid dt {
   color: #849692;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .draft-fields dd {
   margin: 5px 0 0;
   color: #395b55;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.7;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -785,14 +745,14 @@ function formatDate(value: string | null): string {
 
 .draft-actions strong {
   color: #42645e;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .draft-actions p {
   max-width: 350px;
   margin: 4px 0 0;
   color: #8a9b97;
-  font-size: 8px;
+  font-size: 10px;
   line-height: 1.55;
 }
 
@@ -851,7 +811,7 @@ function formatDate(value: string | null): string {
 
 .edit-form label span {
   color: #738b86;
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .edit-form input,
@@ -863,7 +823,7 @@ function formatDate(value: string | null): string {
   border: 1px solid #d9e5e2;
   border-radius: 8px;
   outline: 0;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .edit-form textarea {
@@ -898,9 +858,9 @@ function formatDate(value: string | null): string {
 }
 
 .approval-heading h4 {
-  margin: 4px 0 0;
+  margin: 0;
   color: #315650;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .approval-grid {
@@ -918,11 +878,9 @@ function formatDate(value: string | null): string {
 .approval-grid dd {
   margin: 4px 0 0;
   color: #496962;
-  font-size: 9px;
+  font-size: 11px;
 }
 
-.thread-id,
-.checkpoint-line,
 .decision-note,
 .missing-thread {
   margin-top: 10px;
@@ -931,19 +889,8 @@ function formatDate(value: string | null): string {
   background: #fff;
   border: 1px solid #e6eeec;
   border-radius: 8px;
-  font-size: 8px;
+  font-size: 10px;
   line-height: 1.55;
-}
-
-.thread-id {
-  display: grid;
-  gap: 3px;
-}
-
-.thread-id code,
-.checkpoint-line code {
-  color: #3d665f;
-  overflow-wrap: anywhere;
 }
 
 .decision-note span {
@@ -973,7 +920,7 @@ function formatDate(value: string | null): string {
   max-width: 390px;
   margin: 0;
   color: #8a9b97;
-  font-size: 8px;
+  font-size: 10px;
   line-height: 1.5;
 }
 
@@ -1002,7 +949,7 @@ function formatDate(value: string | null): string {
   padding-top: 9px;
   color: #97a6a2;
   border-top: 1px solid #edf2f0;
-  font-size: 8px;
+  font-size: 10px;
   line-height: 1.55;
 }
 

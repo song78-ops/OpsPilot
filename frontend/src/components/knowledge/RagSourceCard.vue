@@ -14,7 +14,7 @@ defineProps<{
         <strong>{{ source.filename }}</strong>
         <span>
           {{ source.page_number === null ? '页码未知' : `第 ${source.page_number} 页` }}
-          · Part {{ source.part_index }}
+          · 第 {{ source.part_index }} 个片段
         </span>
       </div>
     </div>
@@ -22,12 +22,6 @@ defineProps<{
     <details class="source-details">
       <summary>查看引用片段</summary>
       <pre>{{ source.content_excerpt }}</pre>
-      <dl>
-        <dt>document_id</dt>
-        <dd>{{ source.document_id }}</dd>
-        <dt>chunk_id</dt>
-        <dd>{{ source.chunk_id }}</dd>
-      </dl>
     </details>
   </article>
 </template>
@@ -108,27 +102,5 @@ defineProps<{
   overflow-wrap: anywhere;
 }
 
-.source-details dl {
-  display: grid;
-  margin: 8px 0 0;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: 4px 8px;
-  color: #8b9b98;
-  font-size: 9px;
-}
-
-.source-details dt,
-.source-details dd {
-  min-width: 0;
-  margin: 0;
-}
-
-.source-details dd {
-  overflow: hidden;
-  color: #687d79;
-  font-family: Consolas, monospace;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 </style>
 

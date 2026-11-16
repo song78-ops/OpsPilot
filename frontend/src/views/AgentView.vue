@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import { ElTag } from 'element-plus'
-import 'element-plus/es/components/tag/style/css'
 
 import AgentAssistantPanel from '../components/agent/AgentAssistantPanel.vue'
 import AgentSessionRail from '../components/agent/AgentSessionRail.vue'
@@ -58,20 +56,10 @@ onMounted(() => {
   <main class="agent-page">
     <header class="agent-header">
       <div>
-        <p class="eyebrow">AGENT OPERATIONS WORKSPACE</p>
-        <h1>Agent 智能助手</h1>
+        <h1>工单助手</h1>
         <p class="agent-subtitle">
-          从自然语言请求到工单草稿、人工审批和最终状态确认。
+          描述遇到的问题，创建工单并跟进审批进度。
         </p>
-      </div>
-      <div class="header-badges">
-        <ElTag round effect="plain" class="header-tag">
-          <span class="ready-dot" />
-          LangGraph
-        </ElTag>
-        <ElTag round effect="plain" class="header-tag header-tag--warning">
-          本机人工审批
-        </ElTag>
       </div>
     </header>
 
@@ -101,10 +89,6 @@ onMounted(() => {
       <TicketWorkspace ref="workspace" class="ticket-workspace" />
     </div>
 
-    <p class="page-note">
-      当前没有正式登录、审批人身份或多租户权限控制。审批仅用于 localhost
-      本地开发演示，所有状态均来自真实后端响应。
-    </p>
   </main>
 </template>
 
@@ -146,14 +130,6 @@ onMounted(() => {
   margin-bottom: 14px;
 }
 
-.eyebrow {
-  margin: 0 0 3px;
-  color: #74908b;
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.18em;
-}
-
 .agent-header h1 {
   margin: 0;
   color: #153c38;
@@ -169,35 +145,6 @@ onMounted(() => {
   font-size: 10px;
 }
 
-.header-badges {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.header-tag {
-  height: 27px;
-  color: #217268;
-  background: rgb(240 253 250 / 82%);
-  border-color: #bfe8df;
-  font-size: 9px;
-}
-
-.header-tag--warning {
-  color: #886127;
-  background: #fff9e9;
-  border-color: #edddbb;
-}
-
-.ready-dot {
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  margin-right: 4px;
-  border-radius: 50%;
-  background: #14b8a6;
-}
-
 .agent-layout {
   position: relative;
   z-index: 1;
@@ -209,16 +156,6 @@ onMounted(() => {
     minmax(330px, 0.82fr)
     minmax(500px, 1.55fr);
   gap: 13px;
-}
-
-.page-note {
-  position: relative;
-  z-index: 1;
-  flex: 0 0 auto;
-  margin: 9px 3px 0;
-  color: #91a19e;
-  font-size: 8px;
-  text-align: center;
 }
 
 @media (max-width: 1320px) {

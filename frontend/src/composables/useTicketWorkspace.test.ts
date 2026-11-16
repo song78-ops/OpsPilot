@@ -222,7 +222,9 @@ describe('useTicketWorkspace', () => {
       const expected = decision === 'approve' ? 'approved' : 'rejected'
       expect(result?.draft.status).toBe(expected)
       expect(workspace.selectedDraft.value?.status).toBe(expected)
-      expect(workspace.notice.value).toContain('重新确认')
+      expect(workspace.notice.value).toContain(
+        expected === 'approved' ? '已批准' : '已拒绝',
+      )
       expect(getTicketApprovalByDraft).toHaveBeenCalledWith(draft.id)
       expect(getTicketDraft).toHaveBeenCalled()
     },

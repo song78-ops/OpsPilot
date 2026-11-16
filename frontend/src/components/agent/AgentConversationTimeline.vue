@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { DeepReadonly } from 'vue'
 
 import type {
@@ -7,13 +8,28 @@ import type {
 } from '../../types/agent'
 import RagSourceCard from '../knowledge/RagSourceCard.vue'
 
-defineProps<{
+const props = defineProps<{
   messages:
     | readonly ConversationMessage[]
     | DeepReadonly<ConversationMessage[]>
   latestResult: AgentRunResponse | DeepReadonly<AgentRunResponse> | null
   isLoading: boolean
 }>()
+
+const visibleMessages = computed(() => (
+  props.messages.filter((message) => message.role !== 'tool')
+))
+const toolMessages = computed(() => (
+  props.messages.filter((message) => message.role === 'tool')
+))
+
+const statusLabels: Record<string, string> = {
+  completed: '已完成',
+  insufficient_evidence: '缺少足够依据',
+  ticket_draft_ready: '工单已更新',
+  needs_clarification: '需要补充信息',
+  service_error: '请求失败',
+}
 
 function formatTime(value: string): string {
   return new Intl.DateTimeFormat('zh-CN', {
@@ -24,6 +40,27 @@ function formatTime(value: string): string {
 
 function formatDuration(value: number): string {
   return value < 1 ? '<1 ms' : `${value.toFixed(1)} ms`
+}
+
+function displayMessage(content: string): string {
+  return content
+    .replace(/<\/?evidence[^>]*>/gi, '')
+    .replace(
+      /工单草稿已保存，ID:\s*[0-9a-f]{32}。/g,
+      '工单已保存，可在右侧查看和继续处理。',
+    )
+    .replace(
+      /工单草稿\s*[0-9a-f]{32}\s*已更新，尚未创建正式工单。/g,
+      '工单已更新，可在右侧查看最新内容。',
+    )
+    .replace(
+      /该工具调用已存在，返回工单草稿 ID:\s*[0-9a-f]{32}。/g,
+      '工单已保存，可在右侧查看。',
+    )
+    .replace(
+      /已查询到工单草稿 ID:\s*[0-9a-f]{32}。/g,
+      '已找到这份工单。',
+    )
 }
 </script>
 
@@ -39,79 +76,79 @@ function formatDuration(value: number): string {
         />
       </svg>
     </div>
-    <strong>开始一个新的 Agent 会话</strong>
+    <strong>有什么可以帮你处理？</strong>
     <p>
-      首次发送后后端生成 conversation_id。之后的请求会自动携带它，
-      并从这里恢复服务端消息记录。
+      描述你遇到的问题，可以在这里创建工单、修改内容并跟进审批。
     </p>
   </div>
 
   <div v-else class="timeline" data-testid="agent-message-timeline">
     <article
-      v-for="message in messages"
+      v-for="message in visibleMessages"
       :key="message.id"
       class="timeline-message"
       :class="`timeline-message--${message.role}`"
       :data-role="message.role"
       data-testid="agent-history-message"
     >
-      <template v-if="message.role === 'tool'">
-        <div class="tool-summary" data-testid="agent-tool-summary">
-          <span class="tool-icon">⚙</span>
-          <div>
-            <strong>{{ message.tool_name || 'tool' }}</strong>
-            <p>{{ message.content }}</p>
-            <small>
-              {{ message.tool_status || 'unknown' }}
-              <template v-if="message.business_reference_id">
-                · {{ message.business_reference_id }}
-              </template>
-            </small>
-          </div>
-        </div>
-      </template>
-      <template v-else>
-        <div class="message-meta">
-          <strong>{{ message.role === 'user' ? '你' : 'OpsPilot' }}</strong>
-          <span>{{ formatTime(message.created_at) }}</span>
-          <span v-if="message.status" class="message-status">
-            {{ message.status }}
-          </span>
-        </div>
-        <p class="message-text">{{ message.content }}</p>
-      </template>
+      <div class="message-meta">
+        <strong>{{ message.role === 'user' ? '你' : '工单助手' }}</strong>
+        <span>{{ formatTime(message.created_at) }}</span>
+        <span v-if="message.status" class="message-status">
+          {{ statusLabels[message.status] ?? message.status }}
+        </span>
+      </div>
+      <p class="message-text">{{ displayMessage(message.content) }}</p>
     </article>
 
     <section
-      v-if="latestResult"
-      class="run-details"
-      data-testid="agent-current-run"
+      v-if="latestResult?.sources.length"
+      class="source-summary"
     >
-      <header>
-        <div>
-          <span>CURRENT RUN</span>
-          <strong>
-            本次运行摘要 ·
+      <h4>参考来源</h4>
+      <RagSourceCard
+        v-for="source in latestResult.sources"
+        :key="`${source.chunk_id}:${source.part_index}`"
+        :source="source"
+      />
+    </section>
+
+    <section
+      v-if="latestResult"
+      class="run-shell"
+    >
+      <details class="run-details" data-testid="agent-current-run">
+        <summary>
+          运行详情
+          <small>查看处理过程</small>
+        </summary>
+
+        <div class="run-summary">
+          <span>
+            处理结果：
             <em data-testid="agent-current-intent">
               {{ latestResult.intent }}
             </em>
-          </strong>
+          </span>
+          <span>{{ latestResult.latency_ms.toFixed(0) }} ms</span>
         </div>
-        <small>{{ latestResult.latency_ms.toFixed(0) }} ms</small>
-      </header>
 
-      <div v-if="latestResult.sources.length > 0" class="run-sources">
-        <RagSourceCard
-          v-for="source in latestResult.sources"
-          :key="`${source.chunk_id}:${source.part_index}`"
-          :source="source"
-        />
-      </div>
+        <div
+          v-for="message in toolMessages"
+          :key="message.id"
+          class="tool-summary"
+          data-testid="agent-tool-summary"
+        >
+          <span class="tool-icon">✓</span>
+          <div>
+            <strong>{{ message.tool_name }}</strong>
+            <p>{{ message.content }}</p>
+            <small>{{ statusLabels[message.tool_status ?? ''] ?? message.tool_status }}</small>
+          </div>
+        </div>
 
-      <details>
-        <summary>查看节点和工具调用</summary>
         <p>
-          节点：
+          处理步骤：
           {{ latestResult.executed_nodes.join(' → ') || '无' }}
         </p>
         <div
@@ -147,7 +184,7 @@ function formatDuration(value: number): string {
   justify-content: center;
   padding: 22px 12px;
   color: #879b96;
-  font-size: 9px;
+  font-size: 11px;
   text-align: center;
 }
 
@@ -171,7 +208,7 @@ function formatDuration(value: number): string {
 .timeline-welcome strong {
   margin-top: 13px;
   color: #31534f;
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .timeline-welcome p {
@@ -215,7 +252,7 @@ function formatDuration(value: number): string {
   align-items: center;
   gap: 7px;
   color: #89a19c;
-  font-size: 7px;
+  font-size: 9px;
 }
 
 .timeline-message--user .message-meta {
@@ -223,7 +260,7 @@ function formatDuration(value: number): string {
 }
 
 .message-meta strong {
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .message-status {
@@ -235,7 +272,7 @@ function formatDuration(value: number): string {
 
 .message-text {
   margin: 6px 0 0;
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.75;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -266,81 +303,73 @@ function formatDuration(value: number): string {
 }
 
 .tool-summary strong {
-  font-size: 8px;
+  font-size: 10px;
 }
 
 .tool-summary p {
   margin: 3px 0;
-  font-size: 8px;
+  font-size: 10px;
   line-height: 1.5;
 }
 
 .tool-summary small {
   color: #8fa29e;
-  font-size: 7px;
+  font-size: 9px;
   overflow-wrap: anywhere;
 }
 
+.source-summary {
+  display: grid;
+  gap: 6px;
+}
+
+.source-summary h4 {
+  margin: 0;
+  color: #52716b;
+  font-size: 11px;
+}
+
+.run-shell {
+  margin-top: 2px;
+}
+
 .run-details {
-  margin-top: 4px;
-  padding: 11px;
+  padding: 10px 11px;
+  color: #6f8883;
   background: #f8fbfa;
   border: 1px solid #e2ebe8;
   border-radius: 11px;
-}
-
-.run-details header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
-.run-details header span,
-.run-details header strong {
-  display: block;
-}
-
-.run-details header em {
-  color: #43847a;
-  font-size: 8px;
-  font-style: normal;
-  letter-spacing: 0.03em;
-}
-
-.run-details header span {
-  color: #8aa09b;
-  font-size: 7px;
-  letter-spacing: 0.12em;
-}
-
-.run-details header strong {
-  margin-top: 3px;
-  color: #486660;
   font-size: 10px;
 }
 
-.run-details header small {
-  color: #8da09c;
-  font-size: 8px;
-}
-
-.run-sources {
-  display: grid;
-  gap: 6px;
-  margin-top: 9px;
-}
-
-.run-details details {
-  margin-top: 9px;
-  color: #7d918c;
-  font-size: 8px;
-}
-
 .run-details summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #496761;
+  font-weight: 600;
   cursor: pointer;
 }
 
-.run-details details > p {
+.run-details summary small {
+  color: #91a29e;
+  font-size: 9px;
+  font-weight: 400;
+}
+
+.run-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 9px;
+}
+
+.run-summary em {
+  color: #34776d;
+  font-style: normal;
+}
+
+.run-details > p {
   margin: 8px 0;
   line-height: 1.55;
 }

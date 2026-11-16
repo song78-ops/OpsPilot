@@ -20,13 +20,13 @@ const ERROR_MESSAGES: Record<string, string> = {
   DOCUMENT_VALIDATION_ERROR: '文件校验失败，请检查文件是否为空或文件名是否合法。',
   DOCUMENT_PARSE_ERROR: '无法提取文档文字。扫描 PDF 请先完成 OCR。',
   DOCUMENT_NOT_FOUND: '文档不存在或已经被移除。',
-  DOCUMENT_NOT_INDEXED: '该文档尚未建立索引，请先执行索引构建。',
-  INDEX_INCOMPATIBLE: '当前索引版本不兼容，请重新建立文档索引。',
-  VECTOR_STORE_UNAVAILABLE: '向量存储暂时不可用，请确认只运行了一个后端进程。',
-  EMBEDDING_UNAVAILABLE: 'Embedding 模型暂时不可用。',
-  RERANKER_UNAVAILABLE: '精排模型不可用，请关闭精排后重试。',
+  DOCUMENT_NOT_INDEXED: '该文档尚未加入知识库，请先完成处理。',
+  INDEX_INCOMPATIBLE: '知识库需要更新，请重新处理文档。',
+  VECTOR_STORE_UNAVAILABLE: '知识库服务暂时不可用，请稍后重试。',
+  EMBEDDING_UNAVAILABLE: '知识检索服务暂时不可用，请稍后重试。',
+  RERANKER_UNAVAILABLE: '结果精排暂时不可用，请关闭高级设置中的精排后重试。',
   QUERY_TOKEN_LIMIT_EXCEEDED: '问题过长，超过检索模型限制。',
-  INVALID_RETRIEVAL_PARAMETER: '检索参数不合法，请检查 Top-K 和候选数。',
+  INVALID_RETRIEVAL_PARAMETER: '检索设置不合法，请检查高级设置。',
   LLM_TIMEOUT: '模型响应超时，请稍后重试。',
   LLM_CONNECTION_ERROR: '无法连接模型服务，请检查网络。',
   LLM_UPSTREAM_ERROR: '模型服务返回异常，请稍后重试。',
@@ -78,7 +78,7 @@ async function requestJson<T>(
     response = await fetch(input, init)
   } catch {
     throw new KnowledgeApiError(
-      '无法连接后端服务，请确认 Vite 代理和 FastAPI 已启动。',
+      '无法连接服务，请确认系统已启动后重试。',
       0,
       'NETWORK_ERROR',
     )

@@ -35,7 +35,7 @@ async function openAgent(page) {
   await page.goto(baseUrl, { waitUntil: 'networkidle' })
   await page.getByTestId('nav-agent').click()
   await page.getByRole('heading', {
-    name: 'Agent 智能助手',
+    name: '工单助手',
     level: 1,
   }).waitFor()
   await page.getByTestId('agent-conversation-list').waitFor()

@@ -20,9 +20,9 @@ interface ErrorBody {
 }
 
 const ERROR_MESSAGES: Record<string, string> = {
-  AGENT_NODE_ERROR: 'Agent 工作流执行失败，请稍后重试。',
-  TOOL_CALL_LIMIT: '工具调用次数达到限制，请补充信息后重新发起。',
-  SUPERVISOR_INVALID_OUTPUT: '意图识别结果无效，请换一种方式描述问题。',
+  AGENT_NODE_ERROR: '工单助手处理失败，请稍后重试。',
+  TOOL_CALL_LIMIT: '本次处理步骤过多，请补充信息后重新发起。',
+  SUPERVISOR_INVALID_OUTPUT: '暂时没有理解你的请求，请换一种方式描述。',
   LLM_TIMEOUT: '模型响应超时，请稍后重试。',
   LLM_CONNECTION_ERROR: '无法连接模型服务，请检查网络。',
   LLM_UPSTREAM_ERROR: '模型服务返回异常，请稍后重试。',
@@ -33,13 +33,13 @@ const ERROR_MESSAGES: Record<string, string> = {
   TICKET_DRAFT_STATE_CONFLICT: '草稿当前状态不允许修改或提交审批。',
   TICKET_DRAFT_VERSION_CONFLICT: '草稿内容已变化，请刷新后重新审批。',
   TICKET_APPROVAL_NOT_FOUND: '审批流程不存在，或本地记录的流程 ID 已失效。',
-  TICKET_APPROVAL_MAPPING_MISSING: '草稿状态显示已进入审批，但后端没有对应的审批映射。',
-  TICKET_APPROVAL_STATE_CONFLICT: '该审批已经处理，不能重复批准或拒绝。',
-  APPROVAL_CHECKPOINT_STATE_INVALID: '审批 Checkpoint 与业务状态不一致，请检查后端数据。',
-  APPROVAL_WORKFLOW_ERROR: '审批工作流恢复失败，请检查后端服务。',
+  TICKET_APPROVAL_MAPPING_MISSING: '审批信息暂不可用，请刷新后重试。',
+  TICKET_APPROVAL_STATE_CONFLICT: '该审批已经处理，不能重复通过或拒绝。',
+  APPROVAL_CHECKPOINT_STATE_INVALID: '审批状态异常，请刷新后重试。',
+  APPROVAL_WORKFLOW_ERROR: '审批暂时无法继续，请稍后重试。',
   APPROVAL_LOCAL_ONLY: '审批接口只允许从本机 localhost 访问。',
   TICKET_PERSISTENCE_ERROR: '工单或审批数据写入失败，请稍后重试。',
-  NETWORK_ERROR: '无法连接后端服务，请确认 Vite 代理和 FastAPI 已启动。',
+  NETWORK_ERROR: '无法连接服务，请确认系统已启动后重试。',
 }
 
 export class AgentApiError extends Error {

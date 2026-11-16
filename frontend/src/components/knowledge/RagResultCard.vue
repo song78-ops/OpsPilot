@@ -8,6 +8,10 @@ import RagSourceCard from './RagSourceCard.vue'
 defineProps<{
   entry: RagAskEntry | DeepReadonly<RagAskEntry>
 }>()
+
+function displayAnswer(value: string): string {
+  return value.replace(/<\/?evidence[^>]*>/gi, '')
+}
 </script>
 
 <template>
@@ -18,14 +22,13 @@ defineProps<{
   >
     <header class="result-header">
       <div>
-        <span class="result-kicker">KNOWLEDGE ANSWER</span>
         <h3>{{ entry.question }}</h3>
       </div>
       <span
         class="status-pill"
         :class="`status-pill--${entry.response.status}`"
       >
-        {{ entry.response.status === 'answered' ? '已回答' : '证据不足' }}
+        {{ entry.response.status === 'answered' ? '已找到答案' : '证据不足' }}
       </span>
     </header>
 
@@ -33,7 +36,7 @@ defineProps<{
       <div
         class="answer-text"
         data-testid="rag-answer"
-      >{{ entry.response.answer }}</div>
+      >{{ displayAnswer(entry.response.answer ?? '') }}</div>
     </template>
 
     <div v-else class="insufficient-box">
@@ -56,16 +59,6 @@ defineProps<{
       <p>{{ entry.response.reason }}</p>
     </div>
 
-    <div class="result-metrics">
-      <span>{{ entry.response.retrieval_mode.toUpperCase() }}</span>
-      <span>{{ entry.response.rerank_applied ? '已精排' : '未精排' }}</span>
-      <span>{{ entry.response.retrieval_count }} 个候选</span>
-      <span>{{ entry.response.latency_ms.total_ms.toFixed(0) }} ms</span>
-      <span v-if="entry.response.usage">
-        {{ entry.response.usage.prompt_tokens }} + {{ entry.response.usage.completion_tokens }} tokens
-      </span>
-    </div>
-
     <div v-if="entry.response.sources.length > 0" class="sources">
       <p class="sources-label">引用来源</p>
       <div class="source-grid">
@@ -78,12 +71,12 @@ defineProps<{
     </div>
 
     <details class="latency-details">
-      <summary>查看阶段耗时</summary>
+      <summary>查看检索详情</summary>
       <div>
-        <span>检索 {{ entry.response.latency_ms.retrieval_ms.toFixed(1) }} ms</span>
-        <span>上下文 {{ entry.response.latency_ms.context_ms.toFixed(1) }} ms</span>
-        <span>生成 {{ entry.response.latency_ms.generation_ms.toFixed(1) }} ms</span>
-        <span>总计 {{ entry.response.latency_ms.total_ms.toFixed(1) }} ms</span>
+        <span>检索方式：{{ entry.response.retrieval_mode.toUpperCase() }}</span>
+        <span>{{ entry.response.rerank_applied ? '已启用结果精排' : '未启用结果精排' }}</span>
+        <span>{{ entry.response.retrieval_count }} 个候选结果</span>
+        <span>总耗时 {{ entry.response.latency_ms.total_ms.toFixed(0) }} ms</span>
       </div>
     </details>
   </article>
@@ -110,15 +103,8 @@ defineProps<{
   gap: 16px;
 }
 
-.result-kicker {
-  color: #73908b;
-  font-size: 8px;
-  font-weight: 800;
-  letter-spacing: 0.16em;
-}
-
 .result-header h3 {
-  margin: 6px 0 0;
+  margin: 0;
   color: #183e3a;
   font-size: 15px;
   font-weight: 650;
@@ -202,21 +188,6 @@ defineProps<{
   margin: 4px 0 0;
   font-size: 11px;
   line-height: 1.65;
-}
-
-.result-metrics {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  margin-top: 15px;
-}
-
-.result-metrics span {
-  padding: 4px 8px;
-  color: #78908c;
-  background: #f4f8f7;
-  border-radius: 7px;
-  font-size: 9px;
 }
 
 .sources {

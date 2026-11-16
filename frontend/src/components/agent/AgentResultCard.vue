@@ -13,7 +13,7 @@ const emit = defineEmits<{
 }>()
 
 const intentLabels: Record<AgentIntent, string> = {
-  knowledge_query: '知识库问答',
+  knowledge_query: '企业知识库',
   ticket_request: '工单请求',
   general_chat: '普通聊天',
   clarification: '需要补充',
@@ -24,6 +24,12 @@ const statusLabels: Record<AgentRunResponse['status'], string> = {
   insufficient_evidence: '证据不足',
   ticket_draft_ready: '草稿已保存',
   needs_clarification: '需要补充',
+}
+const draftStatusLabels: Record<string, string> = {
+  draft: '草稿',
+  pending_approval: '待审批',
+  approved: '已批准',
+  rejected: '已拒绝',
 }
 
 function formatDuration(value: number): string {
@@ -39,7 +45,6 @@ function formatDuration(value: number): string {
   >
     <header class="result-heading">
       <div>
-        <span class="result-kicker">AGENT RESPONSE</span>
         <div class="intent-line">
           <h3>{{ intentLabels[result.intent] }}</h3>
           <span class="status-chip">{{ statusLabels[result.status] }}</span>
@@ -87,7 +92,9 @@ function formatDuration(value: number): string {
           <span>真实持久化工单草稿</span>
           <h4>{{ result.ticket_draft.title }}</h4>
         </div>
-        <span class="draft-status">{{ result.ticket_draft.status }}</span>
+        <span class="draft-status">
+          {{ draftStatusLabels[result.ticket_draft.status] }}
+        </span>
       </div>
       <p>{{ result.ticket_draft.description }}</p>
       <dl>
@@ -95,27 +102,19 @@ function formatDuration(value: number): string {
           <dt>设备 / 系统</dt>
           <dd>{{ result.ticket_draft.device_or_system }}</dd>
         </div>
-        <div>
-          <dt>草稿 ID</dt>
-          <dd><code>{{ result.ticket_draft.id }}</code></dd>
-        </div>
-        <div>
-          <dt>内容版本</dt>
-          <dd>v{{ result.ticket_draft.version }}</dd>
-        </div>
       </dl>
       <button
         type="button"
         data-testid="agent-open-draft"
         @click="emit('openDraft', result.ticket_draft.id)"
       >
-        在工单面板中打开
+        查看这份工单
       </button>
     </section>
 
     <details class="execution-details" data-testid="agent-execution">
       <summary>
-        查看运行摘要
+        运行详情
         <span>{{ result.executed_nodes.length }} 个节点</span>
       </summary>
 
@@ -152,7 +151,7 @@ function formatDuration(value: number): string {
       </div>
 
       <p class="runtime-note">
-        Supervisor：{{ result.supervisor_reason }}
+        处理说明：{{ result.supervisor_reason }}
         <template v-if="result.model"> · 模型 {{ result.model }}</template>
       </p>
     </details>
@@ -177,7 +176,6 @@ function formatDuration(value: number): string {
   gap: 10px;
 }
 
-.result-kicker,
 .section-label {
   color: #7a938e;
   font-size: 8px;
