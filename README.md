@@ -374,6 +374,32 @@ python ..\evaluations\rag_retrieval_v1\run_evaluation.py
 
 结果输出到 `latest_results.json` 和 `latest_results.md`。
 
+## Agent 评测
+
+Agent v1 评测位于：
+
+```text
+evaluations/agent_v1
+```
+
+包含 60 条人工意图标签和 12 个独立任务，覆盖工单创建、查询、修改、多轮引用、
+多目标澄清、审批状态限制、非法工具参数、跨会话隔离和幂等。
+
+真实 DeepSeek 评测默认关闭：
+
+```powershell
+cd D:\Projects\OpsPilot
+backend\.venv\Scripts\python.exe evaluations\agent_v1\run_evaluation.py --validate-only
+
+$env:RUN_REAL_AGENT_EVALS = "1"
+$env:AGENT_EVAL_MAX_REQUESTS = "120"
+backend\.venv\Scripts\python.exe evaluations\agent_v1\run_evaluation.py --real
+```
+
+每次运行使用独立的任务数据库目录，不会打开正常 `storage/tickets.db`、
+`storage/conversations.db` 或审批 Checkpoint。结果写入
+`evaluations/agent_v1/results` 的 JSON 和 Markdown 报告。
+
 ## LangGraph Agent
 
 `POST /api/v1/agent/run` 使用真正的 LangGraph `StateGraph`：

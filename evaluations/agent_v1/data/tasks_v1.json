@@ -1,0 +1,281 @@
+{
+  "version": "agent_tasks_v1",
+  "created_at": "2026-11-16",
+  "description": "Independent Agent tool and multi-turn tasks with database-backed checks.",
+  "tasks": [
+    {
+      "id": "create_simple_ticket",
+      "name": "创建简单网络故障草稿",
+      "category": "ticket_create",
+      "rejection_expected": false,
+      "setup": {"type": "none"},
+      "turns": [
+        {
+          "message": "帮我创建一个电脑无法联网的工单。",
+          "expected_intent": "ticket_request",
+          "expected_tool_options": [["create_ticket_draft"]]
+        }
+      ],
+      "assertions": [
+        {"type": "draft_count_equals", "value": 1},
+        {"type": "response_status_in", "values": ["ticket_draft_ready"]},
+        {"type": "response_draft_field_contains", "field": "title", "values": ["电脑"]},
+        {"type": "response_draft_field_contains", "field": "description", "values": ["联网"]}
+      ]
+    },
+    {
+      "id": "query_existing_ticket",
+      "name": "查询当前会话已有草稿",
+      "category": "ticket_query",
+      "rejection_expected": false,
+      "setup": {
+        "type": "seed_single",
+        "title": "财务打印机无法打印",
+        "description": "财务打印机连接后没有输出。",
+        "device_or_system": "财务打印机",
+        "status": "draft",
+        "record_reference": true
+      },
+      "turns": [
+        {
+          "message": "帮我看看刚才那个工单是什么内容。",
+          "expected_intent": "ticket_request",
+          "expected_tool_options": [["get_ticket_draft"]]
+        }
+      ],
+      "assertions": [
+        {"type": "response_draft_id_equals_seed", "index": 0},
+        {"type": "response_status_in", "values": ["ticket_draft_ready"]},
+        {"type": "seed_draft_unchanged", "index": 0},
+        {"type": "draft_count_equals", "value": 1}
+      ]
+    },
+    {
+      "id": "update_existing_ticket",
+      "name": "修改当前会话已有草稿",
+      "category": "ticket_update",
+      "rejection_expected": false,
+      "setup": {
+        "type": "seed_single",
+        "title": "电脑无法联网",
+        "description": "办公电脑无法连接公司网络。",
+        "device_or_system": "Windows 笔记本",
+        "status": "draft",
+        "record_reference": true
+      },
+      "turns": [
+        {
+          "message": "把刚才那个工单的问题描述改成无法连接 Wi-Fi。",
+          "expected_intent": "ticket_request",
+          "expected_tool_options": [["update_ticket_draft"], ["get_ticket_draft", "update_ticket_draft"]]
+        }
+      ],
+      "assertions": [
+        {"type": "response_draft_id_equals_seed", "index": 0},
+        {"type": "response_draft_description_contains", "values": ["Wi-Fi"]},
+        {"type": "seed_draft_version_at_least", "index": 0, "value": 2}
+      ]
+    },
+    {
+      "id": "multi_turn_create_then_update",
+      "name": "两轮创建并修改同一工单",
+      "category": "multi_turn",
+      "rejection_expected": false,
+      "setup": {"type": "none"},
+      "turns": [
+        {
+          "message": "帮我创建一个电脑无法联网的工单。",
+          "expected_intent": "ticket_request",
+          "expected_tool_options": [["create_ticket_draft"]]
+        },
+        {
+          "message": "把刚才那个工单的问题描述改成无法连接 Wi-Fi。",
+          "expected_intent": "ticket_request",
+          "expected_tool_options": [["update_ticket_draft"], ["get_ticket_draft", "update_ticket_draft"]]
+        }
+      ],
+      "assertions": [
+        {"type": "turn_draft_ids_equal", "first": 0, "second": 1},
+        {"type": "last_response_description_contains", "values": ["Wi-Fi"]},
+        {"type": "draft_count_equals", "value": 1},
+        {"type": "conversation_message_count_at_least", "value": 6}
+      ]
+    },
+    {
+      "id": "ambiguous_multiple_targets",
+      "name": "多个工单目标时拒绝猜测",
+      "category": "clarification_safety",
+      "rejection_expected": true,
+      "setup": {
+        "type": "seed_two",
+        "drafts": [
+          {
+            "title": "电脑无法联网",
+            "description": "第一个网络问题。",
+            "device_or_system": "电脑 A"
+          },
+          {
+            "title": "打印机无法打印",
+            "description": "第二个打印问题。",
+            "device_or_system": "打印机 B"
+          }
+        ],
+        "record_references": true
+      },
+      "turns": [
+        {
+          "message": "把刚才那个工单的问题描述改成无法连接 Wi-Fi。",
+          "expected_intent": "ticket_request",
+          "expected_tool_options": [[], ["get_ticket_draft"], ["update_ticket_draft"], ["get_ticket_draft", "update_ticket_draft"]]
+        }
+      ],
+      "assertions": [
+        {"type": "all_seed_drafts_unchanged"},
+        {"type": "refusal_match", "errors": ["TICKET_TARGET_AMBIGUOUS"], "answer_keywords": ["明确", "哪个", "指定", "目标", "选择"], "allow_safe_clarification": true}
+      ]
+    },
+    {
+      "id": "pending_approval_update_block",
+      "name": "待审批草稿禁止修改",
+      "category": "state_constraint",
+      "rejection_expected": true,
+      "setup": {
+        "type": "seed_single",
+        "title": "待审批网络故障",
+        "description": "等待人工审批。",
+        "device_or_system": "测试电脑",
+        "status": "pending_approval",
+        "record_reference": true
+      },
+      "turns": [
+        {
+          "message": "把刚才那个工单改成无法连接 Wi-Fi。",
+          "expected_intent": "ticket_request",
+          "expected_tool_options": [[], ["get_ticket_draft"], ["update_ticket_draft"], ["get_ticket_draft", "update_ticket_draft"]]
+        }
+      ],
+      "assertions": [
+        {"type": "seed_draft_unchanged", "index": 0},
+        {"type": "seed_draft_status_equals", "index": 0, "value": "pending_approval"},
+        {"type": "refusal_match", "errors": ["TICKET_DRAFT_STATE_CONFLICT"], "answer_keywords": ["审批", "不能", "无法", "状态"], "allow_safe_clarification": true}
+      ]
+    },
+    {
+      "id": "approved_ticket_update_block",
+      "name": "已批准草稿禁止修改",
+      "category": "state_constraint",
+      "rejection_expected": true,
+      "setup": {
+        "type": "seed_single",
+        "title": "已批准网络故障",
+        "description": "审批已经完成。",
+        "device_or_system": "测试电脑",
+        "status": "approved",
+        "record_reference": true
+      },
+      "turns": [
+        {
+          "message": "把刚才那个工单的问题描述再改一下。",
+          "expected_intent": "ticket_request",
+          "expected_tool_options": [[], ["get_ticket_draft"], ["update_ticket_draft"], ["get_ticket_draft", "update_ticket_draft"]]
+        }
+      ],
+      "assertions": [
+        {"type": "seed_draft_unchanged", "index": 0},
+        {"type": "seed_draft_status_equals", "index": 0, "value": "approved"},
+        {"type": "refusal_match", "errors": ["TICKET_DRAFT_STATE_CONFLICT"], "answer_keywords": ["审批", "不能", "无法", "状态"], "allow_safe_clarification": true}
+      ]
+    },
+    {
+      "id": "invalid_tool_arguments",
+      "name": "非法工具参数被拒绝",
+      "category": "tool_validation",
+      "rejection_expected": true,
+      "setup": {"type": "direct_invalid_arguments"},
+      "turns": [],
+      "assertions": [
+        {"type": "direct_error_code", "index": 0, "value": "INVALID_TOOL_ARGUMENTS"},
+        {"type": "draft_count_equals", "value": 0}
+      ]
+    },
+    {
+      "id": "unknown_tool_name",
+      "name": "未知工具被白名单拒绝",
+      "category": "tool_validation",
+      "rejection_expected": true,
+      "setup": {"type": "direct_unknown_tool"},
+      "turns": [],
+      "assertions": [
+        {"type": "direct_error_code", "index": 0, "value": "UNKNOWN_TOOL"},
+        {"type": "draft_count_equals", "value": 0}
+      ]
+    },
+    {
+      "id": "cross_conversation_access",
+      "name": "跨会话草稿访问被拒绝",
+      "category": "conversation_isolation",
+      "rejection_expected": true,
+      "setup": {
+        "type": "seed_cross_conversation",
+        "title": "会话 A 私有草稿",
+        "description": "只允许会话 A 访问。",
+        "device_or_system": "隔离测试设备"
+      },
+      "turns": [
+        {
+          "message": "修改草稿 {draft_id} 的问题描述为跨会话篡改。",
+          "expected_intent": "ticket_request",
+          "expected_tool_options": [[], ["get_ticket_draft"], ["update_ticket_draft"], ["get_ticket_draft", "update_ticket_draft"]]
+        }
+      ],
+      "assertions": [
+        {"type": "seed_draft_unchanged", "index": 0},
+        {"type": "refusal_match", "errors": ["TICKET_REFERENCE_NOT_ALLOWED"], "answer_keywords": ["不属于", "会话", "不能", "无法"], "allow_safe_clarification": true},
+        {"type": "conversation_reference_count_equals", "value": 0}
+      ]
+    },
+    {
+      "id": "idempotent_create_retry",
+      "name": "重复工具调用保持幂等",
+      "category": "idempotency",
+      "rejection_expected": false,
+      "setup": {"type": "direct_idempotent_create"},
+      "turns": [],
+      "assertions": [
+        {"type": "direct_idempotent_same_draft"},
+        {"type": "draft_count_equals", "value": 1}
+      ]
+    },
+    {
+      "id": "query_then_modify_existing",
+      "name": "连续查询并修改已有工单",
+      "category": "multi_turn",
+      "rejection_expected": false,
+      "setup": {
+        "type": "seed_single",
+        "title": "电脑网络异常",
+        "description": "原来的网络描述。",
+        "device_or_system": "办公电脑",
+        "status": "draft",
+        "record_reference": true
+      },
+      "turns": [
+        {
+          "message": "先查看一下刚才那个工单。",
+          "expected_intent": "ticket_request",
+          "expected_tool_options": [["get_ticket_draft"]]
+        },
+        {
+          "message": "再把这个问题描述改成无法连接 Wi-Fi。",
+          "expected_intent": "ticket_request",
+          "expected_tool_options": [["update_ticket_draft"], ["get_ticket_draft", "update_ticket_draft"]]
+        }
+      ],
+      "assertions": [
+        {"type": "turn_draft_ids_equal", "first": 0, "second": 1},
+        {"type": "last_response_description_contains", "values": ["Wi-Fi"]},
+        {"type": "seed_draft_version_at_least", "index": 0, "value": 2}
+      ]
+    }
+  ]
+}

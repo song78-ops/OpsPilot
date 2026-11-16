@@ -1,0 +1,2819 @@
+{
+  "metadata": {
+    "run_id": "20261116T014540Z-6861172f",
+    "run_date": "2026-11-16T01:47:13.319120+00:00",
+    "model": "deepseek-chat",
+    "base_url": "https://api.deepseek.com",
+    "temperature": 0.2,
+    "max_retries": 0,
+    "estimated_model_requests": 93,
+    "max_model_requests": 120,
+    "intent_data_version": "agent_intents_v1",
+    "task_data_version": "agent_tasks_v1",
+    "supervisor_prompt_sha256_16": "67ae32fccc4a416b",
+    "ticket_prompt_sha256_16": "42b46e6e26b7138d",
+    "runtime_root": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f",
+    "label_policy": "Human labels are fixed before model execution and are never rewritten from predictions."
+  },
+  "intent_evaluation": {
+    "total": 60,
+    "accuracy": 0.9333333333333333,
+    "per_class": {
+      "knowledge_query": {
+        "support": 15,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "ticket_request": {
+        "support": 15,
+        "precision": 1.0,
+        "recall": 0.7333333333333333,
+        "f1": 0.846153846153846
+      },
+      "general_chat": {
+        "support": 15,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "clarification": {
+        "support": 15,
+        "precision": 0.7894736842105263,
+        "recall": 1.0,
+        "f1": 0.8823529411764706
+      }
+    },
+    "confusion_matrix": {
+      "knowledge_query": {
+        "knowledge_query": 15,
+        "ticket_request": 0,
+        "general_chat": 0,
+        "clarification": 0
+      },
+      "ticket_request": {
+        "knowledge_query": 0,
+        "ticket_request": 11,
+        "general_chat": 0,
+        "clarification": 4
+      },
+      "general_chat": {
+        "knowledge_query": 0,
+        "ticket_request": 0,
+        "general_chat": 15,
+        "clarification": 0
+      },
+      "clarification": {
+        "knowledge_query": 0,
+        "ticket_request": 0,
+        "general_chat": 0,
+        "clarification": 15
+      }
+    },
+    "error_count": 4,
+    "errors": [
+      {
+        "id": "t04",
+        "text": "查一下草稿 3f3b2754e4c04eab90a840d002f71f756 的内容",
+        "expected_intent": "ticket_request",
+        "predicted_intent": "clarification",
+        "correct": false,
+        "reason": "用户要求查询某个草稿的内容，但未说明该草稿属于知识库文档、工单还是其他系统，无法判断应进入知识查询还是工单流程。",
+        "error": null,
+        "latency_ms": 1102.8506997972727,
+        "prompt_tokens": 301,
+        "completion_tokens": 84
+      },
+      {
+        "id": "t06",
+        "text": "把最新那个草稿的问题描述改成网卡驱动异常",
+        "expected_intent": "ticket_request",
+        "predicted_intent": "clarification",
+        "correct": false,
+        "reason": "用户提到“最新那个草稿”，但当前请求未说明是知识库草稿还是工单草稿，也未提供可定位的上下文，无法判断应进入知识查询还是工单处理流程。",
+        "error": null,
+        "latency_ms": 1007.0997001603246,
+        "prompt_tokens": 285,
+        "completion_tokens": 97
+      },
+      {
+        "id": "t10",
+        "text": "修改草稿 0028914c6a5243e88ce70d4eb343d4cf 的标题",
+        "expected_intent": "ticket_request",
+        "predicted_intent": "clarification",
+        "correct": false,
+        "reason": "用户要求修改某个草稿的标题，但未说明草稿内容、目标标题，也不属于知识查询、工单创建或普通闲聊，意图不明确。",
+        "error": null,
+        "latency_ms": 1267.08950009197,
+        "prompt_tokens": 299,
+        "completion_tokens": 103
+      },
+      {
+        "id": "t12",
+        "text": "查一下我这个会话里的工单草稿",
+        "expected_intent": "ticket_request",
+        "predicted_intent": "clarification",
+        "correct": false,
+        "reason": "用户提到“这个会话里的工单草稿”，但当前请求未提供会话历史或草稿内容，无法判断是要查询知识、创建/处理工单还是其他操作。",
+        "error": null,
+        "latency_ms": 1272.7427000645548,
+        "prompt_tokens": 282,
+        "completion_tokens": 94
+      }
+    ],
+    "latency": {
+      "count": 60,
+      "mean_ms": 987.2773183432097,
+      "p50_ms": 969.0735000185668,
+      "p95_ms": 1503.2780999317765
+    },
+    "prompt_tokens": 16784,
+    "completion_tokens": 2985
+  },
+  "intent_rows": [
+    {
+      "id": "k01",
+      "text": "Redis 缓存击穿应该怎么处理？",
+      "expected_intent": "knowledge_query",
+      "predicted_intent": "knowledge_query",
+      "correct": true,
+      "reason": "询问 Redis 缓存击穿的处理方法，属于技术知识/运维流程类问题，需要检索知识库。",
+      "error": null,
+      "latency_ms": 1856.330499984324,
+      "prompt_tokens": 281,
+      "completion_tokens": 44
+    },
+    {
+      "id": "k02",
+      "text": "公司 VPN 客户端怎么连接内部网络？",
+      "expected_intent": "knowledge_query",
+      "predicted_intent": "knowledge_query",
+      "correct": true,
+      "reason": "询问公司 VPN 客户端连接内部网络的操作方法，属于企业内部运维流程/知识查询。",
+      "error": null,
+      "latency_ms": 905.5958001408726,
+      "prompt_tokens": 281,
+      "completion_tokens": 40
+    },
+    {
+      "id": "k03",
+      "text": "MySQL 订单事务应该选择什么隔离级别？",
+      "expected_intent": "knowledge_query",
+      "predicted_intent": "knowledge_query",
+      "correct": true,
+      "reason": "询问数据库事务隔离级别的技术选型问题，属于企业内部技术知识/运维流程范畴，需检索知识库。",
+      "error": null,
+      "latency_ms": 915.2621999382973,
+      "prompt_tokens": 282,
+      "completion_tokens": 45
+    },
+    {
+      "id": "k04",
+      "text": "知识库文档上传支持哪些文件格式？",
+      "expected_intent": "knowledge_query",
+      "predicted_intent": "knowledge_query",
+      "correct": true,
+      "reason": "询问知识库文档上传支持的文件格式，属于企业内部产品/文档知识问题，需要检索知识库。",
+      "error": null,
+      "latency_ms": 1078.5920000635087,
+      "prompt_tokens": 281,
+      "completion_tokens": 43
+    },
+    {
+      "id": "k05",
+      "text": "DeepSeek API Key 应该保存在哪里？",
+      "expected_intent": "knowledge_query",
+      "predicted_intent": "knowledge_query",
+      "correct": true,
+      "reason": "询问企业内部关于 API Key 保存位置的安全规范或流程，属于知识查询。",
+      "error": null,
+      "latency_ms": 1080.0475999712944,
+      "prompt_tokens": 282,
+      "completion_tokens": 38
+    },
+    {
+      "id": "k06",
+      "text": "错误代码 CACHE_ERR_504 表示什么问题？",
+      "expected_intent": "knowledge_query",
+      "predicted_intent": "knowledge_query",
+      "correct": true,
+      "reason": "询问错误代码 CACHE_ERR_504 的含义，属于需要检索企业内部知识库的技术问题",
+      "error": null,
+      "latency_ms": 532.4893000070006,
+      "prompt_tokens": 284,
+      "completion_tokens": 41
+    },
+    {
+      "id": "k07",
+      "text": "员工年假申请流程是什么？",
+      "expected_intent": "knowledge_query",
+      "predicted_intent": "knowledge_query",
+      "correct": true,
+      "reason": "询问企业内部制度流程，需检索知识库",
+      "error": null,
+      "latency_ms": 790.118700126186,
+      "prompt_tokens": 279,
+      "completion_tokens": 30
+    },
+    {
+      "id": "k08",
+      "text": "财务打印机驱动应该怎么安装？",
+      "expected_intent": "knowledge_query",
+      "predicted_intent": "knowledge_query",
+      "correct": true,
+      "reason": "询问财务打印机驱动的安装方法，属于企业内部运维流程/知识查询。",
+      "error": null,
+      "latency_ms": 769.3743999116123,
+      "prompt_tokens": 279,
+      "completion_tokens": 36
+    },
+    {
+      "id": "k09",
+      "text": "生产数据库每天晚上怎么做备份？",
+      "expected_intent": "knowledge_query",
+      "predicted_intent": "knowledge_query",
+      "correct": true,
+      "reason": "询问生产数据库备份方式，属于企业内部运维流程知识，需要检索知识库。",
+      "error": null,
+      "latency_ms": 983.0465998966247,
+      "prompt_tokens": 278,
+      "completion_tokens": 38
+    },
+    {
+      "id": "k10",
+      "text": "服务器 CPU 使用率持续 95% 应该先查什么？",
+      "expected_intent": "knowledge_query",
+      "predicted_intent": "knowledge_query",
+      "correct": true,
+      "reason": "询问服务器 CPU 高使用率的排查流程，属于运维流程/知识库检索问题",
+      "error": null,
+      "latency_ms": 1347.1015999093652,
+      "prompt_tokens": 287,
+      "completion_tokens": 39
+    },
+    {
+      "id": "k11",
+      "text": "Qdrant 本地索引为什么变慢了？",
+      "expected_intent": "knowledge_query",
+      "predicted_intent": "knowledge_query",
+      "correct": true,
+      "reason": "询问 Qdrant 本地索引变慢的原因，属于企业内部技术知识与运维流程查询。",
+      "error": null,
+      "latency_ms": 910.9939998015761,
+      "prompt_tokens": 282,
+      "completion_tokens": 40
+    },
+    {
+      "id": "k12",
+      "text": "差旅报销需要提交哪些材料？",
+      "expected_intent": "knowledge_query",
+      "predicted_intent": "knowledge_query",
+      "correct": true,
+      "reason": "询问企业差旅报销制度与所需材料，属于企业内部知识查询。",
+      "error": null,
+      "latency_ms": 970.4398000612855,
+      "prompt_tokens": 280,
+      "completion_tokens": 36
+    },
+    {
+      "id": "k13",
+      "text": "RRF 排名融合的计算方式是什么？",
+      "expected_intent": "knowledge_query",
+      "predicted_intent": "knowledge_query",
+      "correct": true,
+      "reason": "询问 RRF 排名融合的计算方式，属于需要检索知识库的技术知识问题。",
+      "error": null,
+      "latency_ms": 905.5975000374019,
+      "prompt_tokens": 281,
+      "completion_tokens": 39
+    },
+    {
+      "id": "k14",
+      "text": "新员工申请系统权限要走什么流程？",
+      "expected_intent": "knowledge_query",
+      "predicted_intent": "knowledge_query",
+      "correct": true,
+      "reason": "询问企业内部权限申请流程，属于企业制度/运维流程知识查询。",
+      "error": null,
+      "latency_ms": 522.1277999226004,
+      "prompt_tokens": 281,
+      "completion_tokens": 36
+    },
+    {
+      "id": "k15",
+      "text": "生产环境允许在哪些时间发布？",
+      "expected_intent": "knowledge_query",
+      "predicted_intent": "knowledge_query",
+      "correct": true,
+      "reason": "询问生产环境发布的时间窗口，属于企业内部运维流程知识，需要检索知识库。",
+      "error": null,
+      "latency_ms": 848.6465001478791,
+      "prompt_tokens": 280,
+      "completion_tokens": 39
+    },
+    {
+      "id": "t01",
+      "text": "帮我建个电脑连不上网的工单",
+      "expected_intent": "ticket_request",
+      "predicted_intent": "ticket_request",
+      "correct": true,
+      "reason": "用户明确要求创建电脑无法上网的故障工单",
+      "error": null,
+      "latency_ms": 710.8468001242727,
+      "prompt_tokens": 282,
+      "completion_tokens": 33
+    },
+    {
+      "id": "t02",
+      "text": "给财务打印机报个维修单",
+      "expected_intent": "ticket_request",
+      "predicted_intent": "ticket_request",
+      "correct": true,
+      "reason": "用户明确要求为财务打印机创建维修工单",
+      "error": null,
+      "latency_ms": 743.7358000315726,
+      "prompt_tokens": 280,
+      "completion_tokens": 32
+    },
+    {
+      "id": "t03",
+      "text": "新建一个 VPN 登录失败的故障工单",
+      "expected_intent": "ticket_request",
+      "predicted_intent": "ticket_request",
+      "correct": true,
+      "reason": "用户明确要求新建 VPN 登录失败的故障工单",
+      "error": null,
+      "latency_ms": 1093.145899940282,
+      "prompt_tokens": 282,
+      "completion_tokens": 33
+    },
+    {
+      "id": "t04",
+      "text": "查一下草稿 3f3b2754e4c04eab90a840d002f71f756 的内容",
+      "expected_intent": "ticket_request",
+      "predicted_intent": "clarification",
+      "correct": false,
+      "reason": "用户要求查询某个草稿的内容，但未说明该草稿属于知识库文档、工单还是其他系统，无法判断应进入知识查询还是工单流程。",
+      "error": null,
+      "latency_ms": 1102.8506997972727,
+      "prompt_tokens": 301,
+      "completion_tokens": 84
+    },
+    {
+      "id": "t05",
+      "text": "看看刚才那个工单现在是什么状态",
+      "expected_intent": "ticket_request",
+      "predicted_intent": "ticket_request",
+      "correct": true,
+      "reason": "用户询问刚才那个工单的当前状态，属于工单处理相关请求，需进入工单工作流查询。",
+      "error": null,
+      "latency_ms": 1102.0112000405788,
+      "prompt_tokens": 281,
+      "completion_tokens": 47
+    },
+    {
+      "id": "t06",
+      "text": "把最新那个草稿的问题描述改成网卡驱动异常",
+      "expected_intent": "ticket_request",
+      "predicted_intent": "clarification",
+      "correct": false,
+      "reason": "用户提到“最新那个草稿”，但当前请求未说明是知识库草稿还是工单草稿，也未提供可定位的上下文，无法判断应进入知识查询还是工单处理流程。",
+      "error": null,
+      "latency_ms": 1007.0997001603246,
+      "prompt_tokens": 285,
+      "completion_tokens": 97
+    },
+    {
+      "id": "t07",
+      "text": "我电脑突然没声音了，帮我登记一下",
+      "expected_intent": "ticket_request",
+      "predicted_intent": "ticket_request",
+      "correct": true,
+      "reason": "用户明确要求登记电脑故障，属于创建维修工单。",
+      "error": null,
+      "latency_ms": 736.2061000894755,
+      "prompt_tokens": 283,
+      "completion_tokens": 35
+    },
+    {
+      "id": "t08",
+      "text": "会议室投影仪坏了，创建一个报修草稿",
+      "expected_intent": "ticket_request",
+      "predicted_intent": "ticket_request",
+      "correct": true,
+      "reason": "用户明确要求为会议室投影仪故障创建报修草稿，属于创建工单请求。",
+      "error": null,
+      "latency_ms": 639.4170999992639,
+      "prompt_tokens": 283,
+      "completion_tokens": 42
+    },
+    {
+      "id": "t09",
+      "text": "数据库连接超时这个问题请开一张工单",
+      "expected_intent": "ticket_request",
+      "predicted_intent": "ticket_request",
+      "correct": true,
+      "reason": "用户明确要求就数据库连接超时问题创建工单",
+      "error": null,
+      "latency_ms": 759.2501000035554,
+      "prompt_tokens": 283,
+      "completion_tokens": 34
+    },
+    {
+      "id": "t10",
+      "text": "修改草稿 0028914c6a5243e88ce70d4eb343d4cf 的标题",
+      "expected_intent": "ticket_request",
+      "predicted_intent": "clarification",
+      "correct": false,
+      "reason": "用户要求修改某个草稿的标题，但未说明草稿内容、目标标题，也不属于知识查询、工单创建或普通闲聊，意图不明确。",
+      "error": null,
+      "latency_ms": 1267.08950009197,
+      "prompt_tokens": 299,
+      "completion_tokens": 103
+    },
+    {
+      "id": "t11",
+      "text": "账号被锁了，帮我提交故障记录",
+      "expected_intent": "ticket_request",
+      "predicted_intent": "ticket_request",
+      "correct": true,
+      "reason": "用户明确要求提交故障记录，属于创建工单请求。",
+      "error": null,
+      "latency_ms": 386.7005999200046,
+      "prompt_tokens": 282,
+      "completion_tokens": 35
+    },
+    {
+      "id": "t12",
+      "text": "查一下我这个会话里的工单草稿",
+      "expected_intent": "ticket_request",
+      "predicted_intent": "clarification",
+      "correct": false,
+      "reason": "用户提到“这个会话里的工单草稿”，但当前请求未提供会话历史或草稿内容，无法判断是要查询知识、创建/处理工单还是其他操作。",
+      "error": null,
+      "latency_ms": 1272.7427000645548,
+      "prompt_tokens": 282,
+      "completion_tokens": 94
+    },
+    {
+      "id": "t13",
+      "text": "麻烦把刚才的工单标题改成邮箱故障",
+      "expected_intent": "ticket_request",
+      "predicted_intent": "ticket_request",
+      "correct": true,
+      "reason": "用户明确要求修改工单标题，属于处理工单的请求。",
+      "error": null,
+      "latency_ms": 689.6070002112538,
+      "prompt_tokens": 283,
+      "completion_tokens": 37
+    },
+    {
+      "id": "t14",
+      "text": "员工邮箱无法收发，报修一下",
+      "expected_intent": "ticket_request",
+      "predicted_intent": "ticket_request",
+      "correct": true,
+      "reason": "用户明确要求报修邮箱无法收发的故障，属于创建维修/故障工单。",
+      "error": null,
+      "latency_ms": 619.0226001199335,
+      "prompt_tokens": 281,
+      "completion_tokens": 41
+    },
+    {
+      "id": "t15",
+      "text": "系统提示 TOKEN_EXPIRED，帮我建工单",
+      "expected_intent": "ticket_request",
+      "predicted_intent": "ticket_request",
+      "correct": true,
+      "reason": "用户明确要求创建工单，并提供了故障现象 TOKEN_EXPIRED",
+      "error": null,
+      "latency_ms": 1255.0537001807243,
+      "prompt_tokens": 285,
+      "completion_tokens": 38
+    },
+    {
+      "id": "g01",
+      "text": "你好",
+      "expected_intent": "general_chat",
+      "predicted_intent": "general_chat",
+      "correct": true,
+      "reason": "用户仅发送问候语，属于普通闲聊，不涉及企业知识查询或工单创建。",
+      "error": null,
+      "latency_ms": 562.5625001266599,
+      "prompt_tokens": 274,
+      "completion_tokens": 42
+    },
+    {
+      "id": "g02",
+      "text": "给我讲个笑话吧",
+      "expected_intent": "general_chat",
+      "predicted_intent": "general_chat",
+      "correct": true,
+      "reason": "用户请求讲笑话，属于普通闲聊，不依赖企业内部知识，也未要求创建工单。",
+      "error": null,
+      "latency_ms": 803.2825998961926,
+      "prompt_tokens": 278,
+      "completion_tokens": 42
+    },
+    {
+      "id": "g03",
+      "text": "你是谁？",
+      "expected_intent": "general_chat",
+      "predicted_intent": "general_chat",
+      "correct": true,
+      "reason": "用户在询问助手身份，属于自我介绍类普通对话，不依赖企业内部知识。",
+      "error": null,
+      "latency_ms": 645.837499992922,
+      "prompt_tokens": 274,
+      "completion_tokens": 38
+    },
+    {
+      "id": "g04",
+      "text": "今天心情有点糟",
+      "expected_intent": "general_chat",
+      "predicted_intent": "general_chat",
+      "correct": true,
+      "reason": "用户表达个人情绪，属于普通闲聊，不涉及企业知识查询或工单创建。",
+      "error": null,
+      "latency_ms": 847.4242999218404,
+      "prompt_tokens": 277,
+      "completion_tokens": 41
+    },
+    {
+      "id": "g05",
+      "text": "推荐一条学习 Python 的路线",
+      "expected_intent": "general_chat",
+      "predicted_intent": "general_chat",
+      "correct": true,
+      "reason": "用户请求推荐 Python 学习路线，属于不依赖企业内部知识的一般性咨询。",
+      "error": null,
+      "latency_ms": 923.4950998798013,
+      "prompt_tokens": 280,
+      "completion_tokens": 39
+    },
+    {
+      "id": "g06",
+      "text": "解释一下递归是什么意思",
+      "expected_intent": "general_chat",
+      "predicted_intent": "general_chat",
+      "correct": true,
+      "reason": "询问递归的一般概念，属于不依赖企业内部知识的普通对话",
+      "error": null,
+      "latency_ms": 850.7636999711394,
+      "prompt_tokens": 277,
+      "completion_tokens": 34
+    },
+    {
+      "id": "g07",
+      "text": "谢谢你",
+      "expected_intent": "general_chat",
+      "predicted_intent": "general_chat",
+      "correct": true,
+      "reason": "用户表达感谢，属于普通闲聊，不涉及知识查询或工单处理。",
+      "error": null,
+      "latency_ms": 1394.473300082609,
+      "prompt_tokens": 274,
+      "completion_tokens": 39
+    },
+    {
+      "id": "g08",
+      "text": "怎么跟不太熟悉的同事沟通？",
+      "expected_intent": "general_chat",
+      "predicted_intent": "general_chat",
+      "correct": true,
+      "reason": "询问一般人际沟通建议，不依赖企业内部知识，也未要求创建工单",
+      "error": null,
+      "latency_ms": 978.5011999774724,
+      "prompt_tokens": 279,
+      "completion_tokens": 38
+    },
+    {
+      "id": "g09",
+      "text": "帮我写一句周报开头",
+      "expected_intent": "general_chat",
+      "predicted_intent": "general_chat",
+      "correct": true,
+      "reason": "请求是撰写周报开头的通用写作辅助，不涉及企业内部知识检索或工单创建处理。",
+      "error": null,
+      "latency_ms": 989.7034000605345,
+      "prompt_tokens": 279,
+      "completion_tokens": 44
+    },
+    {
+      "id": "g10",
+      "text": "给这个项目起一个好听的名字",
+      "expected_intent": "general_chat",
+      "predicted_intent": "general_chat",
+      "correct": true,
+      "reason": "用户请求为项目起名，属于一般性创意对话，不依赖企业内部知识，也未要求创建或处理工单。",
+      "error": null,
+      "latency_ms": 578.5739000421017,
+      "prompt_tokens": 280,
+      "completion_tokens": 48
+    },
+    {
+      "id": "g11",
+      "text": "你能做什么？",
+      "expected_intent": "general_chat",
+      "predicted_intent": "general_chat",
+      "correct": true,
+      "reason": "用户询问助手能力，属于不依赖企业内部知识的普通对话。",
+      "error": null,
+      "latency_ms": 1098.053599940613,
+      "prompt_tokens": 275,
+      "completion_tokens": 35
+    },
+    {
+      "id": "g12",
+      "text": "用一句话鼓励我",
+      "expected_intent": "general_chat",
+      "predicted_intent": "general_chat",
+      "correct": true,
+      "reason": "用户请求一句鼓励的话，属于普通闲聊，不依赖企业内部知识，也不涉及创建工单。",
+      "error": null,
+      "latency_ms": 692.9909999016672,
+      "prompt_tokens": 277,
+      "completion_tokens": 43
+    },
+    {
+      "id": "g13",
+      "text": "Python 列表推导式举个例子",
+      "expected_intent": "general_chat",
+      "predicted_intent": "general_chat",
+      "correct": true,
+      "reason": "请求是通用编程示例，不依赖企业内部知识，也未要求创建或处理工单",
+      "error": null,
+      "latency_ms": 950.1441000029445,
+      "prompt_tokens": 279,
+      "completion_tokens": 40
+    },
+    {
+      "id": "g14",
+      "text": "今天适合出去散步吗？",
+      "expected_intent": "general_chat",
+      "predicted_intent": "general_chat",
+      "correct": true,
+      "reason": "询问天气/散步建议，属于不依赖企业内部知识的普通对话",
+      "error": null,
+      "latency_ms": 969.0735000185668,
+      "prompt_tokens": 278,
+      "completion_tokens": 35
+    },
+    {
+      "id": "g15",
+      "text": "周末怎么安排比较轻松？",
+      "expected_intent": "general_chat",
+      "predicted_intent": "general_chat",
+      "correct": true,
+      "reason": "询问周末放松安排，属于不依赖企业内部知识的普通闲聊。",
+      "error": null,
+      "latency_ms": 932.5915998779237,
+      "prompt_tokens": 278,
+      "completion_tokens": 35
+    },
+    {
+      "id": "c01",
+      "text": "帮我处理一下",
+      "expected_intent": "clarification",
+      "predicted_intent": "clarification",
+      "correct": true,
+      "reason": "用户只说“帮我处理一下”，未说明要查询知识、创建工单还是其他事项，信息不足。",
+      "error": null,
+      "latency_ms": 1066.314399940893,
+      "prompt_tokens": 276,
+      "completion_tokens": 67
+    },
+    {
+      "id": "c02",
+      "text": "这个问题你看着办",
+      "expected_intent": "clarification",
+      "predicted_intent": "clarification",
+      "correct": true,
+      "reason": "用户未说明具体要查询知识、创建工单还是普通聊天，信息不足，无法判断意图。",
+      "error": null,
+      "latency_ms": 1382.216600002721,
+      "prompt_tokens": 277,
+      "completion_tokens": 61
+    },
+    {
+      "id": "c03",
+      "text": "看看那个东西",
+      "expected_intent": "clarification",
+      "predicted_intent": "clarification",
+      "correct": true,
+      "reason": "用户请求“看看那个东西”指代不明，无法判断是要查询知识、创建工单还是普通聊天。",
+      "error": null,
+      "latency_ms": 2210.8573000878096,
+      "prompt_tokens": 276,
+      "completion_tokens": 68
+    },
+    {
+      "id": "c04",
+      "text": "帮我搞一下",
+      "expected_intent": "clarification",
+      "predicted_intent": "clarification",
+      "correct": true,
+      "reason": "用户请求“帮我搞一下”过于模糊，无法判断是要查询知识、创建工单还是普通聊天。",
+      "error": null,
+      "latency_ms": 1001.6884000506252,
+      "prompt_tokens": 276,
+      "completion_tokens": 67
+    },
+    {
+      "id": "c05",
+      "text": "有个问题",
+      "expected_intent": "clarification",
+      "predicted_intent": "clarification",
+      "correct": true,
+      "reason": "用户仅说“有个问题”，未说明是查询知识、创建工单还是普通对话，信息不足。",
+      "error": null,
+      "latency_ms": 1076.0530000552535,
+      "prompt_tokens": 275,
+      "completion_tokens": 68
+    },
+    {
+      "id": "c06",
+      "text": "需要你帮忙",
+      "expected_intent": "clarification",
+      "predicted_intent": "clarification",
+      "correct": true,
+      "reason": "用户仅表示需要帮忙，未说明是查询知识、创建工单还是普通对话，信息不足。",
+      "error": null,
+      "latency_ms": 1503.2780999317765,
+      "prompt_tokens": 276,
+      "completion_tokens": 66
+    },
+    {
+      "id": "c07",
+      "text": "把这个弄好",
+      "expected_intent": "clarification",
+      "predicted_intent": "clarification",
+      "correct": true,
+      "reason": "用户仅说“把这个弄好”，未说明要查询知识、创建工单还是其他操作，信息不足无法判断意图。",
+      "error": null,
+      "latency_ms": 936.5989998914301,
+      "prompt_tokens": 276,
+      "completion_tokens": 70
+    },
+    {
+      "id": "c08",
+      "text": "好像不太对",
+      "expected_intent": "clarification",
+      "predicted_intent": "clarification",
+      "correct": true,
+      "reason": "用户仅表示“好像不太对”，未说明是知识查询、工单处理还是普通对话，信息不足以判断意图。",
+      "error": null,
+      "latency_ms": 1360.2227000519633,
+      "prompt_tokens": 276,
+      "completion_tokens": 73
+    },
+    {
+      "id": "c09",
+      "text": "能不能处理下",
+      "expected_intent": "clarification",
+      "predicted_intent": "clarification",
+      "correct": true,
+      "reason": "用户只说“能不能处理下”，未说明要查询知识、创建工单还是其他事项，信息不足。",
+      "error": null,
+      "latency_ms": 1448.6805000342429,
+      "prompt_tokens": 276,
+      "completion_tokens": 66
+    },
+    {
+      "id": "c10",
+      "text": "继续",
+      "expected_intent": "clarification",
+      "predicted_intent": "clarification",
+      "correct": true,
+      "reason": "当前请求仅为“继续”，缺少上下文且无法判断是要查询知识、创建工单还是普通聊天。",
+      "error": null,
+      "latency_ms": 918.0916000623256,
+      "prompt_tokens": 274,
+      "completion_tokens": 65
+    },
+    {
+      "id": "c11",
+      "text": "还是不行",
+      "expected_intent": "clarification",
+      "predicted_intent": "clarification",
+      "correct": true,
+      "reason": "用户仅说“还是不行”，缺少上下文，无法判断是要查询知识、创建工单还是普通对话",
+      "error": null,
+      "latency_ms": 1108.7046000175178,
+      "prompt_tokens": 275,
+      "completion_tokens": 67
+    },
+    {
+      "id": "c12",
+      "text": "看一下吧",
+      "expected_intent": "clarification",
+      "predicted_intent": "clarification",
+      "correct": true,
+      "reason": "用户仅说“看一下吧”，没有说明要看什么，无法判断是查询知识、创建工单还是普通聊天。",
+      "error": null,
+      "latency_ms": 787.6831998582929,
+      "prompt_tokens": 275,
+      "completion_tokens": 70
+    },
+    {
+      "id": "c13",
+      "text": "帮我改改",
+      "expected_intent": "clarification",
+      "predicted_intent": "clarification",
+      "correct": true,
+      "reason": "用户请求“帮我改改”未说明修改对象或目的，无法判断是查询知识、创建工单还是普通对话。",
+      "error": null,
+      "latency_ms": 1131.7646000534296,
+      "prompt_tokens": 276,
+      "completion_tokens": 71
+    },
+    {
+      "id": "c14",
+      "text": "找一下",
+      "expected_intent": "clarification",
+      "predicted_intent": "clarification",
+      "correct": true,
+      "reason": "用户仅说“找一下”，未说明要找什么，无法判断是查询知识、创建工单还是普通聊天。",
+      "error": null,
+      "latency_ms": 1167.7092001773417,
+      "prompt_tokens": 275,
+      "completion_tokens": 69
+    },
+    {
+      "id": "c15",
+      "text": "那个东西有问题",
+      "expected_intent": "clarification",
+      "predicted_intent": "clarification",
+      "correct": true,
+      "reason": "用户仅说“那个东西有问题”，未说明具体对象，也未明确是查询知识、创建工单还是普通聊天，信息不足。",
+      "error": null,
+      "latency_ms": 1118.7607999891043,
+      "prompt_tokens": 276,
+      "completion_tokens": 75
+    }
+  ],
+  "task_evaluation": {
+    "total_tasks": 12,
+    "successful_tasks": 11,
+    "task_success_rate": 0.9166666666666666,
+    "tool_selection_total": 11,
+    "tool_selection_correct": 11,
+    "tool_selection_accuracy": 1.0,
+    "successful_tool_executions": 9,
+    "unexpected_failed_tool_executions": 0,
+    "expected_rejections": 3,
+    "tool_execution_success_rate": 1.0,
+    "task_latency": {
+      "count": 12,
+      "mean_ms": 2760.375391711326,
+      "p50_ms": 2801.662999903783,
+      "p95_ms": 9119.500600034371
+    },
+    "agent_turn_latency": {
+      "count": 11,
+      "mean_ms": 2940.259090909091,
+      "p50_ms": 3001.46,
+      "p95_ms": 4584.45
+    },
+    "supervisor_latency": {
+      "count": 11,
+      "mean_ms": 998.0329363818535,
+      "p50_ms": 875.1296999398619,
+      "p95_ms": 1495.1237000059336
+    },
+    "tool_latency": {
+      "count": 12,
+      "mean_ms": 8.894299991273632,
+      "p50_ms": 4.673200193792582,
+      "p95_ms": 30.170799931511283
+    },
+    "prompt_tokens": 28374,
+    "completion_tokens": 2017,
+    "failures": [
+      {
+        "task_id": "cross_conversation_access",
+        "name": "跨会话草稿访问被拒绝",
+        "category": "conversation_isolation",
+        "failure_reasons": [
+          "refusal_match: errors=[]"
+        ]
+      }
+    ],
+    "claimed_success_db_mismatches": []
+  },
+  "task_category_counts": {
+    "ticket_create": 1,
+    "ticket_query": 1,
+    "ticket_update": 1,
+    "multi_turn": 2,
+    "clarification_safety": 1,
+    "state_constraint": 2,
+    "tool_validation": 2,
+    "conversation_isolation": 1,
+    "idempotency": 1
+  },
+  "task_results": [
+    {
+      "task_id": "create_simple_ticket",
+      "name": "创建简单网络故障草稿",
+      "category": "ticket_create",
+      "success": true,
+      "failure_reasons": [],
+      "assertions": [
+        {
+          "assertion": "draft_count_equals",
+          "passed": true,
+          "detail": "draft_count=1"
+        },
+        {
+          "assertion": "response_status_in",
+          "passed": true,
+          "detail": "status=ticket_draft_ready"
+        },
+        {
+          "assertion": "response_draft_field_contains",
+          "passed": true,
+          "detail": "title=电脑无法联网"
+        },
+        {
+          "assertion": "response_draft_field_contains",
+          "passed": true,
+          "detail": "description=用户报告电脑无法联网，需要排查网络连接问题。"
+        }
+      ],
+      "turns": [
+        {
+          "message": "帮我创建一个电脑无法联网的工单。",
+          "expected_intent": "ticket_request",
+          "actual_intent": "ticket_request",
+          "expected_tool_options": [
+            [
+              "create_ticket_draft"
+            ]
+          ],
+          "actual_tools": [
+            "create_ticket_draft"
+          ],
+          "tool_selection_correct": true,
+          "response": {
+            "intent": "ticket_request",
+            "status": "ticket_draft_ready",
+            "answer": "工单草稿已保存，ID: 1b9dcf0c865342b887481ef31882885f。",
+            "ticket_draft": {
+              "id": "1b9dcf0c865342b887481ef31882885f",
+              "title": "电脑无法联网",
+              "description": "用户报告电脑无法联网，需要排查网络连接问题。",
+              "device_or_system": "电脑（网络连接）",
+              "status": "draft",
+              "version": 1,
+              "created_at": "2026-11-16T01:46:42.099333Z",
+              "updated_at": "2026-11-16T01:46:42.099333Z"
+            },
+            "sources": [],
+            "executed_nodes": [
+              "supervisor",
+              "ticket_agent",
+              "ticket_tools",
+              "ticket_agent"
+            ],
+            "supervisor_reason": "用户明确要求创建电脑无法联网的工单",
+            "model": "deepseek-flash",
+            "usage": {
+              "prompt_tokens": 2701,
+              "completion_tokens": 224
+            },
+            "error": null,
+            "latency_ms": 2768.41,
+            "node_traces": [
+              {
+                "node": "supervisor",
+                "duration_ms": 889.5567001309246,
+                "status": "ticket_request",
+                "error": null
+              },
+              {
+                "node": "ticket_agent",
+                "duration_ms": 944.9179000221193,
+                "status": "tool_calls_requested",
+                "error": null
+              },
+              {
+                "node": "ticket_tools",
+                "duration_ms": 30.178199987858534,
+                "status": "completed",
+                "error": null
+              },
+              {
+                "node": "tool:create_ticket_draft",
+                "duration_ms": 30.16550000756979,
+                "status": "created",
+                "error": null
+              },
+              {
+                "node": "ticket_agent",
+                "duration_ms": 884.2072999104857,
+                "status": "ticket_draft_ready",
+                "error": null
+              }
+            ],
+            "tool_calls": [
+              {
+                "tool_call_id": "call_00_B0216Znt3h6Mlt2lLwem2127",
+                "name": "create_ticket_draft",
+                "status": "created",
+                "duration_ms": 30.170799931511283,
+                "error": null
+              }
+            ],
+            "conversation_id": "40d92f7ec7bc446a8a34869a50907aa7",
+            "memory_persisted": true
+          },
+          "error": null,
+          "wall_latency_ms": 2789.718400221318,
+          "latency_ms": 2768.41,
+          "usage": {
+            "prompt_tokens": 2701,
+            "completion_tokens": 224
+          },
+          "supervisor_latencies_ms": [
+            889.5567001309246
+          ],
+          "tool_executions": [
+            {
+              "name": "create_ticket_draft",
+              "status": "created",
+              "error": null,
+              "success": true,
+              "expected_rejection": false,
+              "duration_ms": 30.170799931511283
+            }
+          ]
+        }
+      ],
+      "tool_selection": [
+        {
+          "message": "帮我创建一个电脑无法联网的工单。",
+          "expected_tool_options": [
+            [
+              "create_ticket_draft"
+            ]
+          ],
+          "actual_tools": [
+            "create_ticket_draft"
+          ],
+          "correct": true
+        }
+      ],
+      "tool_executions": [
+        {
+          "name": "create_ticket_draft",
+          "status": "created",
+          "error": null,
+          "success": true,
+          "expected_rejection": false,
+          "duration_ms": 30.170799931511283
+        }
+      ],
+      "direct_outcomes": [],
+      "seed_draft_ids": [],
+      "total_latency_ms": 2821.430900134146,
+      "claimed_success_db_mismatch": false,
+      "isolated_paths": {
+        "tickets": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\create_simple_ticket\\tickets.db",
+        "conversations": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\create_simple_ticket\\conversations.db",
+        "checkpoints": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\create_simple_ticket\\approval_checkpoints.db",
+        "qdrant": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\create_simple_ticket\\qdrant",
+        "bm25": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\create_simple_ticket\\bm25"
+      }
+    },
+    {
+      "task_id": "query_existing_ticket",
+      "name": "查询当前会话已有草稿",
+      "category": "ticket_query",
+      "success": true,
+      "failure_reasons": [],
+      "assertions": [
+        {
+          "assertion": "response_draft_id_equals_seed",
+          "passed": true,
+          "detail": "response_draft_id=1f9d642357694b0798c2ac6cb623623a seed=1f9d642357694b0798c2ac6cb623623a"
+        },
+        {
+          "assertion": "response_status_in",
+          "passed": true,
+          "detail": "status=ticket_draft_ready"
+        },
+        {
+          "assertion": "seed_draft_unchanged",
+          "passed": true,
+          "detail": "actual={'id': '1f9d642357694b0798c2ac6cb623623a', 'title': '财务打印机无法打印', 'description': '财务打印机连接后没有输出。', 'device_or_system': '财务打印机', 'status': 'draft', 'version': 1, 'created_at': '2026-11-16T01:46:43.037467Z', 'updated_at': '2026-11-16T01:46:43.037467Z'}"
+        },
+        {
+          "assertion": "draft_count_equals",
+          "passed": true,
+          "detail": "draft_count=1"
+        }
+      ],
+      "turns": [
+        {
+          "message": "帮我看看刚才那个工单是什么内容。",
+          "expected_intent": "ticket_request",
+          "actual_intent": "ticket_request",
+          "expected_tool_options": [
+            [
+              "get_ticket_draft"
+            ]
+          ],
+          "actual_tools": [
+            "get_ticket_draft"
+          ],
+          "tool_selection_correct": true,
+          "response": {
+            "intent": "ticket_request",
+            "status": "ticket_draft_ready",
+            "answer": "已查询到工单草稿 ID: 1f9d642357694b0798c2ac6cb623623a。",
+            "ticket_draft": {
+              "id": "1f9d642357694b0798c2ac6cb623623a",
+              "title": "财务打印机无法打印",
+              "description": "财务打印机连接后没有输出。",
+              "device_or_system": "财务打印机",
+              "status": "draft",
+              "version": 1,
+              "created_at": "2026-11-16T01:46:43.037467Z",
+              "updated_at": "2026-11-16T01:46:43.037467Z"
+            },
+            "sources": [],
+            "executed_nodes": [
+              "supervisor",
+              "ticket_agent",
+              "ticket_tools",
+              "ticket_agent"
+            ],
+            "supervisor_reason": "用户询问刚才创建的工单内容，属于对工单的处理/查看请求",
+            "model": "deepseek-flash",
+            "usage": {
+              "prompt_tokens": 3145,
+              "completion_tokens": 238
+            },
+            "error": null,
+            "latency_ms": 3321.88,
+            "node_traces": [
+              {
+                "node": "supervisor",
+                "duration_ms": 1007.2743999771774,
+                "status": "ticket_request",
+                "error": null
+              },
+              {
+                "node": "ticket_agent",
+                "duration_ms": 1212.0966000948101,
+                "status": "tool_calls_requested",
+                "error": null
+              },
+              {
+                "node": "ticket_tools",
+                "duration_ms": 2.0576000679284334,
+                "status": "completed",
+                "error": null
+              },
+              {
+                "node": "tool:get_ticket_draft",
+                "duration_ms": 2.049200003966689,
+                "status": "retrieved",
+                "error": null
+              },
+              {
+                "node": "ticket_agent",
+                "duration_ms": 1086.1706000287086,
+                "status": "ticket_draft_ready",
+                "error": null
+              }
+            ],
+            "tool_calls": [
+              {
+                "tool_call_id": "call_00_ZcfGjMzgU9VzoLak3yBA9233",
+                "name": "get_ticket_draft",
+                "status": "retrieved",
+                "duration_ms": 2.051800023764372,
+                "error": null
+              }
+            ],
+            "conversation_id": "cd54f18c87d5422e986161547a68ea66",
+            "memory_persisted": true
+          },
+          "error": null,
+          "wall_latency_ms": 3322.9777000378817,
+          "latency_ms": 3321.88,
+          "usage": {
+            "prompt_tokens": 3145,
+            "completion_tokens": 238
+          },
+          "supervisor_latencies_ms": [
+            1007.2743999771774
+          ],
+          "tool_executions": [
+            {
+              "name": "get_ticket_draft",
+              "status": "retrieved",
+              "error": null,
+              "success": true,
+              "expected_rejection": false,
+              "duration_ms": 2.051800023764372
+            }
+          ]
+        }
+      ],
+      "tool_selection": [
+        {
+          "message": "帮我看看刚才那个工单是什么内容。",
+          "expected_tool_options": [
+            [
+              "get_ticket_draft"
+            ]
+          ],
+          "actual_tools": [
+            "get_ticket_draft"
+          ],
+          "correct": true
+        }
+      ],
+      "tool_executions": [
+        {
+          "name": "get_ticket_draft",
+          "status": "retrieved",
+          "error": null,
+          "success": true,
+          "expected_rejection": false,
+          "duration_ms": 2.051800023764372
+        }
+      ],
+      "direct_outcomes": [],
+      "seed_draft_ids": [
+        "1f9d642357694b0798c2ac6cb623623a"
+      ],
+      "total_latency_ms": 3390.5144000891596,
+      "claimed_success_db_mismatch": false,
+      "isolated_paths": {
+        "tickets": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\query_existing_ticket\\tickets.db",
+        "conversations": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\query_existing_ticket\\conversations.db",
+        "checkpoints": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\query_existing_ticket\\approval_checkpoints.db",
+        "qdrant": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\query_existing_ticket\\qdrant",
+        "bm25": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\query_existing_ticket\\bm25"
+      }
+    },
+    {
+      "task_id": "update_existing_ticket",
+      "name": "修改当前会话已有草稿",
+      "category": "ticket_update",
+      "success": true,
+      "failure_reasons": [],
+      "assertions": [
+        {
+          "assertion": "response_draft_id_equals_seed",
+          "passed": true,
+          "detail": "response_draft_id=d1e76fbc6dcc44c8b8dfc3269efa8953 seed=d1e76fbc6dcc44c8b8dfc3269efa8953"
+        },
+        {
+          "assertion": "response_draft_description_contains",
+          "passed": true,
+          "detail": "description=无法连接 wi-fi。"
+        },
+        {
+          "assertion": "seed_draft_version_at_least",
+          "passed": true,
+          "detail": "version=2"
+        }
+      ],
+      "turns": [
+        {
+          "message": "把刚才那个工单的问题描述改成无法连接 Wi-Fi。",
+          "expected_intent": "ticket_request",
+          "actual_intent": "ticket_request",
+          "expected_tool_options": [
+            [
+              "update_ticket_draft"
+            ],
+            [
+              "get_ticket_draft",
+              "update_ticket_draft"
+            ]
+          ],
+          "actual_tools": [
+            "update_ticket_draft"
+          ],
+          "tool_selection_correct": true,
+          "response": {
+            "intent": "ticket_request",
+            "status": "ticket_draft_ready",
+            "answer": "工单草稿 d1e76fbc6dcc44c8b8dfc3269efa8953 已更新，尚未创建正式工单。",
+            "ticket_draft": {
+              "id": "d1e76fbc6dcc44c8b8dfc3269efa8953",
+              "title": "电脑无法联网",
+              "description": "无法连接 Wi-Fi。",
+              "device_or_system": "Windows 笔记本",
+              "status": "draft",
+              "version": 2,
+              "created_at": "2026-11-16T01:46:46.427610Z",
+              "updated_at": "2026-11-16T01:46:48.293448Z"
+            },
+            "sources": [],
+            "executed_nodes": [
+              "supervisor",
+              "ticket_agent",
+              "ticket_tools",
+              "ticket_agent"
+            ],
+            "supervisor_reason": "用户要求修改刚才创建的工单草稿的问题描述，属于处理工单的请求。",
+            "model": "deepseek-flash",
+            "usage": {
+              "prompt_tokens": 3205,
+              "completion_tokens": 191
+            },
+            "error": null,
+            "latency_ms": 2734.39,
+            "node_traces": [
+              {
+                "node": "supervisor",
+                "duration_ms": 867.4111000727862,
+                "status": "ticket_request",
+                "error": null
+              },
+              {
+                "node": "ticket_agent",
+                "duration_ms": 962.123200064525,
+                "status": "tool_calls_requested",
+                "error": null
+              },
+              {
+                "node": "ticket_tools",
+                "duration_ms": 5.730600096285343,
+                "status": "completed",
+                "error": null
+              },
+              {
+                "node": "tool:update_ticket_draft",
+                "duration_ms": 5.718899890780449,
+                "status": "updated",
+                "error": null
+              },
+              {
+                "node": "ticket_agent",
+                "duration_ms": 885.2905000094324,
+                "status": "ticket_draft_ready",
+                "error": null
+              }
+            ],
+            "tool_calls": [
+              {
+                "tool_call_id": "call_00_Bkmv0XcsIErSsapSIV1a9532",
+                "name": "update_ticket_draft",
+                "status": "updated",
+                "duration_ms": 5.722600035369396,
+                "error": null
+              }
+            ],
+            "conversation_id": "9adc18b674d4442faff4c922f9eb4347",
+            "memory_persisted": true
+          },
+          "error": null,
+          "wall_latency_ms": 2735.518400091678,
+          "latency_ms": 2734.39,
+          "usage": {
+            "prompt_tokens": 3205,
+            "completion_tokens": 191
+          },
+          "supervisor_latencies_ms": [
+            867.4111000727862
+          ],
+          "tool_executions": [
+            {
+              "name": "update_ticket_draft",
+              "status": "updated",
+              "error": null,
+              "success": true,
+              "expected_rejection": false,
+              "duration_ms": 5.722600035369396
+            }
+          ]
+        }
+      ],
+      "tool_selection": [
+        {
+          "message": "把刚才那个工单的问题描述改成无法连接 Wi-Fi。",
+          "expected_tool_options": [
+            [
+              "update_ticket_draft"
+            ],
+            [
+              "get_ticket_draft",
+              "update_ticket_draft"
+            ]
+          ],
+          "actual_tools": [
+            "update_ticket_draft"
+          ],
+          "correct": true
+        }
+      ],
+      "tool_executions": [
+        {
+          "name": "update_ticket_draft",
+          "status": "updated",
+          "error": null,
+          "success": true,
+          "expected_rejection": false,
+          "duration_ms": 5.722600035369396
+        }
+      ],
+      "direct_outcomes": [],
+      "seed_draft_ids": [
+        "d1e76fbc6dcc44c8b8dfc3269efa8953"
+      ],
+      "total_latency_ms": 2801.662999903783,
+      "claimed_success_db_mismatch": false,
+      "isolated_paths": {
+        "tickets": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\update_existing_ticket\\tickets.db",
+        "conversations": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\update_existing_ticket\\conversations.db",
+        "checkpoints": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\update_existing_ticket\\approval_checkpoints.db",
+        "qdrant": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\update_existing_ticket\\qdrant",
+        "bm25": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\update_existing_ticket\\bm25"
+      }
+    },
+    {
+      "task_id": "multi_turn_create_then_update",
+      "name": "两轮创建并修改同一工单",
+      "category": "multi_turn",
+      "success": true,
+      "failure_reasons": [],
+      "assertions": [
+        {
+          "assertion": "turn_draft_ids_equal",
+          "passed": true,
+          "detail": "first=f913ddcdd7fe430498d51ab94b42dd05 second=f913ddcdd7fe430498d51ab94b42dd05"
+        },
+        {
+          "assertion": "last_response_description_contains",
+          "passed": true,
+          "detail": "description=无法连接 wi-fi。"
+        },
+        {
+          "assertion": "draft_count_equals",
+          "passed": true,
+          "detail": "draft_count=1"
+        },
+        {
+          "assertion": "conversation_message_count_at_least",
+          "passed": true,
+          "detail": "message_count=6"
+        }
+      ],
+      "turns": [
+        {
+          "message": "帮我创建一个电脑无法联网的工单。",
+          "expected_intent": "ticket_request",
+          "actual_intent": "ticket_request",
+          "expected_tool_options": [
+            [
+              "create_ticket_draft"
+            ]
+          ],
+          "actual_tools": [
+            "create_ticket_draft"
+          ],
+          "tool_selection_correct": true,
+          "response": {
+            "intent": "ticket_request",
+            "status": "ticket_draft_ready",
+            "answer": "工单草稿已保存，ID: f913ddcdd7fe430498d51ab94b42dd05。",
+            "ticket_draft": {
+              "id": "f913ddcdd7fe430498d51ab94b42dd05",
+              "title": "电脑无法联网",
+              "description": "用户反馈电脑无法联网，需要排查网络连接问题。",
+              "device_or_system": "电脑（网络连接）",
+              "status": "draft",
+              "version": 1,
+              "created_at": "2026-11-16T01:46:50.959693Z",
+              "updated_at": "2026-11-16T01:46:50.959693Z"
+            },
+            "sources": [],
+            "executed_nodes": [
+              "supervisor",
+              "ticket_agent",
+              "ticket_tools",
+              "ticket_agent"
+            ],
+            "supervisor_reason": "用户明确要求创建电脑无法联网的工单",
+            "model": "deepseek-flash",
+            "usage": {
+              "prompt_tokens": 2700,
+              "completion_tokens": 225
+            },
+            "error": null,
+            "latency_ms": 3001.46,
+            "node_traces": [
+              {
+                "node": "supervisor",
+                "duration_ms": 866.2311001680791,
+                "status": "ticket_request",
+                "error": null
+              },
+              {
+                "node": "ticket_agent",
+                "duration_ms": 836.6998001001775,
+                "status": "tool_calls_requested",
+                "error": null
+              },
+              {
+                "node": "ticket_tools",
+                "duration_ms": 27.579399989917874,
+                "status": "completed",
+                "error": null
+              },
+              {
+                "node": "tool:create_ticket_draft",
+                "duration_ms": 27.56550000049174,
+                "status": "created",
+                "error": null
+              },
+              {
+                "node": "ticket_agent",
+                "duration_ms": 1257.4402999598533,
+                "status": "ticket_draft_ready",
+                "error": null
+              }
+            ],
+            "tool_calls": [
+              {
+                "tool_call_id": "call_00_Tq7lYZqehstig6hiovJN6970",
+                "name": "create_ticket_draft",
+                "status": "created",
+                "duration_ms": 27.570100035518408,
+                "error": null
+              }
+            ],
+            "conversation_id": "233d1e38f8cb4f178eb8c7c083acb9da",
+            "memory_persisted": true
+          },
+          "error": null,
+          "wall_latency_ms": 3021.2870999239385,
+          "latency_ms": 3001.46,
+          "usage": {
+            "prompt_tokens": 2700,
+            "completion_tokens": 225
+          },
+          "supervisor_latencies_ms": [
+            866.2311001680791
+          ],
+          "tool_executions": [
+            {
+              "name": "create_ticket_draft",
+              "status": "created",
+              "error": null,
+              "success": true,
+              "expected_rejection": false,
+              "duration_ms": 27.570100035518408
+            }
+          ]
+        },
+        {
+          "message": "把刚才那个工单的问题描述改成无法连接 Wi-Fi。",
+          "expected_intent": "ticket_request",
+          "actual_intent": "ticket_request",
+          "expected_tool_options": [
+            [
+              "update_ticket_draft"
+            ],
+            [
+              "get_ticket_draft",
+              "update_ticket_draft"
+            ]
+          ],
+          "actual_tools": [
+            "update_ticket_draft"
+          ],
+          "tool_selection_correct": true,
+          "response": {
+            "intent": "ticket_request",
+            "status": "ticket_draft_ready",
+            "answer": "工单草稿 f913ddcdd7fe430498d51ab94b42dd05 已更新，尚未创建正式工单。",
+            "ticket_draft": {
+              "id": "f913ddcdd7fe430498d51ab94b42dd05",
+              "title": "电脑无法联网",
+              "description": "无法连接 Wi-Fi。",
+              "device_or_system": "电脑（网络连接）",
+              "status": "draft",
+              "version": 2,
+              "created_at": "2026-11-16T01:46:50.959693Z",
+              "updated_at": "2026-11-16T01:46:54.558506Z"
+            },
+            "sources": [],
+            "executed_nodes": [
+              "supervisor",
+              "ticket_agent",
+              "ticket_tools",
+              "ticket_agent"
+            ],
+            "supervisor_reason": "用户要求修改刚才已创建工单的问题描述，属于处理工单的请求。",
+            "model": "deepseek-flash",
+            "usage": {
+              "prompt_tokens": 3179,
+              "completion_tokens": 185
+            },
+            "error": null,
+            "latency_ms": 3171.34,
+            "node_traces": [
+              {
+                "node": "supervisor",
+                "duration_ms": 1245.4794000368565,
+                "status": "ticket_request",
+                "error": null
+              },
+              {
+                "node": "ticket_agent",
+                "duration_ms": 1077.1168998908252,
+                "status": "tool_calls_requested",
+                "error": null
+              },
+              {
+                "node": "ticket_tools",
+                "duration_ms": 4.678600002080202,
+                "status": "completed",
+                "error": null
+              },
+              {
+                "node": "tool:update_ticket_draft",
+                "duration_ms": 4.670600173994899,
+                "status": "updated",
+                "error": null
+              },
+              {
+                "node": "ticket_agent",
+                "duration_ms": 831.21950016357,
+                "status": "ticket_draft_ready",
+                "error": null
+              }
+            ],
+            "tool_calls": [
+              {
+                "tool_call_id": "call_00_wHFPSZ0m7Dcq1sEfLEf51290",
+                "name": "update_ticket_draft",
+                "status": "updated",
+                "duration_ms": 4.673200193792582,
+                "error": null
+              }
+            ],
+            "conversation_id": "233d1e38f8cb4f178eb8c7c083acb9da",
+            "memory_persisted": true
+          },
+          "error": null,
+          "wall_latency_ms": 3172.454700106755,
+          "latency_ms": 3171.34,
+          "usage": {
+            "prompt_tokens": 3179,
+            "completion_tokens": 185
+          },
+          "supervisor_latencies_ms": [
+            1245.4794000368565
+          ],
+          "tool_executions": [
+            {
+              "name": "update_ticket_draft",
+              "status": "updated",
+              "error": null,
+              "success": true,
+              "expected_rejection": false,
+              "duration_ms": 4.673200193792582
+            }
+          ]
+        }
+      ],
+      "tool_selection": [
+        {
+          "message": "帮我创建一个电脑无法联网的工单。",
+          "expected_tool_options": [
+            [
+              "create_ticket_draft"
+            ]
+          ],
+          "actual_tools": [
+            "create_ticket_draft"
+          ],
+          "correct": true
+        },
+        {
+          "message": "把刚才那个工单的问题描述改成无法连接 Wi-Fi。",
+          "expected_tool_options": [
+            [
+              "update_ticket_draft"
+            ],
+            [
+              "get_ticket_draft",
+              "update_ticket_draft"
+            ]
+          ],
+          "actual_tools": [
+            "update_ticket_draft"
+          ],
+          "correct": true
+        }
+      ],
+      "tool_executions": [
+        {
+          "name": "create_ticket_draft",
+          "status": "created",
+          "error": null,
+          "success": true,
+          "expected_rejection": false,
+          "duration_ms": 27.570100035518408
+        },
+        {
+          "name": "update_ticket_draft",
+          "status": "updated",
+          "error": null,
+          "success": true,
+          "expected_rejection": false,
+          "duration_ms": 4.673200193792582
+        }
+      ],
+      "direct_outcomes": [],
+      "seed_draft_ids": [],
+      "total_latency_ms": 6211.521500023082,
+      "claimed_success_db_mismatch": false,
+      "isolated_paths": {
+        "tickets": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\multi_turn_create_then_update\\tickets.db",
+        "conversations": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\multi_turn_create_then_update\\conversations.db",
+        "checkpoints": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\multi_turn_create_then_update\\approval_checkpoints.db",
+        "qdrant": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\multi_turn_create_then_update\\qdrant",
+        "bm25": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\multi_turn_create_then_update\\bm25"
+      }
+    },
+    {
+      "task_id": "ambiguous_multiple_targets",
+      "name": "多个工单目标时拒绝猜测",
+      "category": "clarification_safety",
+      "success": true,
+      "failure_reasons": [],
+      "assertions": [
+        {
+          "assertion": "all_seed_drafts_unchanged",
+          "passed": true,
+          "detail": "seed_ids=['b0f4b91f8e944aff9ede8f2e980d926a', '5beca9dad0814528824508c47f149015']"
+        },
+        {
+          "assertion": "refusal_match",
+          "passed": true,
+          "detail": "errors=[]"
+        }
+      ],
+      "turns": [
+        {
+          "message": "把刚才那个工单的问题描述改成无法连接 Wi-Fi。",
+          "expected_intent": "ticket_request",
+          "actual_intent": "ticket_request",
+          "expected_tool_options": [
+            [],
+            [
+              "get_ticket_draft"
+            ],
+            [
+              "update_ticket_draft"
+            ],
+            [
+              "get_ticket_draft",
+              "update_ticket_draft"
+            ]
+          ],
+          "actual_tools": [],
+          "tool_selection_correct": true,
+          "response": {
+            "intent": "ticket_request",
+            "status": "needs_clarification",
+            "answer": "我需要先确认要修改哪个草稿：当前会话中有两个可编辑草稿（b0f4b91f8e944aff9ede8f2e980d926a 和 5beca9dad0814528824508c47f149015），“刚才那个”指向不唯一。请提供要修改的草稿 ID。",
+            "ticket_draft": null,
+            "sources": [],
+            "executed_nodes": [
+              "supervisor",
+              "ticket_agent"
+            ],
+            "supervisor_reason": "用户要求修改刚才创建的工单的问题描述，属于处理工单的请求。",
+            "model": "deepseek-flash",
+            "usage": {
+              "prompt_tokens": 1839,
+              "completion_tokens": 114
+            },
+            "error": null,
+            "latency_ms": 1712.57,
+            "node_traces": [
+              {
+                "node": "supervisor",
+                "duration_ms": 664.4713999703526,
+                "status": "ticket_request",
+                "error": null
+              },
+              {
+                "node": "ticket_agent",
+                "duration_ms": 1034.8491999320686,
+                "status": "needs_clarification",
+                "error": null
+              }
+            ],
+            "tool_calls": [],
+            "conversation_id": "f57140a6ea524e2d9c2964ca7f2c2475",
+            "memory_persisted": true
+          },
+          "error": null,
+          "wall_latency_ms": 1713.566099992022,
+          "latency_ms": 1712.57,
+          "usage": {
+            "prompt_tokens": 1839,
+            "completion_tokens": 114
+          },
+          "supervisor_latencies_ms": [
+            664.4713999703526
+          ],
+          "tool_executions": []
+        }
+      ],
+      "tool_selection": [
+        {
+          "message": "把刚才那个工单的问题描述改成无法连接 Wi-Fi。",
+          "expected_tool_options": [
+            [],
+            [
+              "get_ticket_draft"
+            ],
+            [
+              "update_ticket_draft"
+            ],
+            [
+              "get_ticket_draft",
+              "update_ticket_draft"
+            ]
+          ],
+          "actual_tools": [],
+          "correct": true
+        }
+      ],
+      "tool_executions": [],
+      "direct_outcomes": [],
+      "seed_draft_ids": [
+        "b0f4b91f8e944aff9ede8f2e980d926a",
+        "5beca9dad0814528824508c47f149015"
+      ],
+      "total_latency_ms": 1788.9994999859482,
+      "claimed_success_db_mismatch": false,
+      "isolated_paths": {
+        "tickets": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\ambiguous_multiple_targets\\tickets.db",
+        "conversations": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\ambiguous_multiple_targets\\conversations.db",
+        "checkpoints": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\ambiguous_multiple_targets\\approval_checkpoints.db",
+        "qdrant": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\ambiguous_multiple_targets\\qdrant",
+        "bm25": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\ambiguous_multiple_targets\\bm25"
+      }
+    },
+    {
+      "task_id": "pending_approval_update_block",
+      "name": "待审批草稿禁止修改",
+      "category": "state_constraint",
+      "success": true,
+      "failure_reasons": [],
+      "assertions": [
+        {
+          "assertion": "seed_draft_unchanged",
+          "passed": true,
+          "detail": "actual={'id': 'fab035d32d364045a074a5c1e13ee423', 'title': '待审批网络故障', 'description': '等待人工审批。', 'device_or_system': '测试电脑', 'status': 'pending_approval', 'version': 1, 'created_at': '2026-11-16T01:46:57.238380Z', 'updated_at': '2026-11-16T01:46:57.256557Z'}"
+        },
+        {
+          "assertion": "seed_draft_status_equals",
+          "passed": true,
+          "detail": "status=pending_approval"
+        },
+        {
+          "assertion": "refusal_match",
+          "passed": true,
+          "detail": "errors=['TICKET_DRAFT_STATE_CONFLICT']"
+        }
+      ],
+      "turns": [
+        {
+          "message": "把刚才那个工单改成无法连接 Wi-Fi。",
+          "expected_intent": "ticket_request",
+          "actual_intent": "ticket_request",
+          "expected_tool_options": [
+            [],
+            [
+              "get_ticket_draft"
+            ],
+            [
+              "update_ticket_draft"
+            ],
+            [
+              "get_ticket_draft",
+              "update_ticket_draft"
+            ]
+          ],
+          "actual_tools": [
+            "update_ticket_draft"
+          ],
+          "tool_selection_correct": true,
+          "response": {
+            "intent": "ticket_request",
+            "status": "needs_clarification",
+            "answer": "工单草稿操作未成功：Ticket draft 'fab035d32d364045a074a5c1e13ee423' is not editable in its current state.",
+            "ticket_draft": null,
+            "sources": [],
+            "executed_nodes": [
+              "supervisor",
+              "ticket_agent",
+              "ticket_tools",
+              "ticket_agent"
+            ],
+            "supervisor_reason": "用户要求修改刚才创建的工单内容，属于处理工单的请求",
+            "model": "deepseek-flash",
+            "usage": {
+              "prompt_tokens": 3084,
+              "completion_tokens": 221
+            },
+            "error": "TICKET_DRAFT_STATE_CONFLICT",
+            "latency_ms": 3999.87,
+            "node_traces": [
+              {
+                "node": "supervisor",
+                "duration_ms": 1364.882699912414,
+                "status": "ticket_request",
+                "error": null
+              },
+              {
+                "node": "ticket_agent",
+                "duration_ms": 917.9593999870121,
+                "status": "tool_calls_requested",
+                "error": null
+              },
+              {
+                "node": "ticket_tools",
+                "duration_ms": 2.8103000950068235,
+                "status": "completed",
+                "error": null
+              },
+              {
+                "node": "tool:update_ticket_draft",
+                "duration_ms": 2.8026998043060303,
+                "status": "error",
+                "error": "TICKET_DRAFT_STATE_CONFLICT"
+              },
+              {
+                "node": "ticket_agent",
+                "duration_ms": 1701.2281999923289,
+                "status": "needs_clarification",
+                "error": "TICKET_DRAFT_STATE_CONFLICT"
+              }
+            ],
+            "tool_calls": [
+              {
+                "tool_call_id": "call_00_IJyL7W5Z0mOSmHHokiFt2767",
+                "name": "update_ticket_draft",
+                "status": "error",
+                "duration_ms": 2.8051999397575855,
+                "error": "TICKET_DRAFT_STATE_CONFLICT"
+              }
+            ],
+            "conversation_id": "30eb4bdc0c274a959ecb1ec3433bee91",
+            "memory_persisted": true
+          },
+          "error": null,
+          "wall_latency_ms": 4000.8874000050128,
+          "latency_ms": 3999.87,
+          "usage": {
+            "prompt_tokens": 3084,
+            "completion_tokens": 221
+          },
+          "supervisor_latencies_ms": [
+            1364.882699912414
+          ],
+          "tool_executions": [
+            {
+              "name": "update_ticket_draft",
+              "status": "error",
+              "error": "TICKET_DRAFT_STATE_CONFLICT",
+              "success": false,
+              "expected_rejection": true,
+              "duration_ms": 2.8051999397575855
+            }
+          ]
+        }
+      ],
+      "tool_selection": [
+        {
+          "message": "把刚才那个工单改成无法连接 Wi-Fi。",
+          "expected_tool_options": [
+            [],
+            [
+              "get_ticket_draft"
+            ],
+            [
+              "update_ticket_draft"
+            ],
+            [
+              "get_ticket_draft",
+              "update_ticket_draft"
+            ]
+          ],
+          "actual_tools": [
+            "update_ticket_draft"
+          ],
+          "correct": true
+        }
+      ],
+      "tool_executions": [
+        {
+          "name": "update_ticket_draft",
+          "status": "error",
+          "error": "TICKET_DRAFT_STATE_CONFLICT",
+          "success": false,
+          "expected_rejection": true,
+          "duration_ms": 2.8051999397575855
+        }
+      ],
+      "direct_outcomes": [],
+      "seed_draft_ids": [
+        "fab035d32d364045a074a5c1e13ee423"
+      ],
+      "total_latency_ms": 4093.848400050774,
+      "claimed_success_db_mismatch": false,
+      "isolated_paths": {
+        "tickets": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\pending_approval_update_block\\tickets.db",
+        "conversations": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\pending_approval_update_block\\conversations.db",
+        "checkpoints": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\pending_approval_update_block\\approval_checkpoints.db",
+        "qdrant": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\pending_approval_update_block\\qdrant",
+        "bm25": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\pending_approval_update_block\\bm25"
+      }
+    },
+    {
+      "task_id": "approved_ticket_update_block",
+      "name": "已批准草稿禁止修改",
+      "category": "state_constraint",
+      "success": true,
+      "failure_reasons": [],
+      "assertions": [
+        {
+          "assertion": "seed_draft_unchanged",
+          "passed": true,
+          "detail": "actual={'id': '2bb94cb5a71543c28d7bc3816f824617', 'title': '已批准网络故障', 'description': '审批已经完成。', 'device_or_system': '测试电脑', 'status': 'approved', 'version': 1, 'created_at': '2026-11-16T01:47:01.332409Z', 'updated_at': '2026-11-16T01:47:01.363444Z'}"
+        },
+        {
+          "assertion": "seed_draft_status_equals",
+          "passed": true,
+          "detail": "status=approved"
+        },
+        {
+          "assertion": "refusal_match",
+          "passed": true,
+          "detail": "errors=[]"
+        }
+      ],
+      "turns": [
+        {
+          "message": "把刚才那个工单的问题描述再改一下。",
+          "expected_intent": "ticket_request",
+          "actual_intent": "ticket_request",
+          "expected_tool_options": [
+            [],
+            [
+              "get_ticket_draft"
+            ],
+            [
+              "update_ticket_draft"
+            ],
+            [
+              "get_ticket_draft",
+              "update_ticket_draft"
+            ]
+          ],
+          "actual_tools": [],
+          "tool_selection_correct": true,
+          "response": {
+            "intent": "ticket_request",
+            "status": "needs_clarification",
+            "answer": "我需要先确认一下：您希望把问题描述改成什么内容呢？请提供新的描述文本，我再帮您更新草稿 2bb94cb5a71543c28d7bc3816f824617。\n\n另外提醒一下：该草稿当前状态为 approved（已批准），可能已不可编辑；如果更新失败，我会如实告知您。",
+            "ticket_draft": null,
+            "sources": [],
+            "executed_nodes": [
+              "supervisor",
+              "ticket_agent"
+            ],
+            "supervisor_reason": "用户要求修改刚才创建的工单草稿的问题描述，属于处理工单的请求。",
+            "model": "deepseek-flash",
+            "usage": {
+              "prompt_tokens": 1643,
+              "completion_tokens": 117
+            },
+            "error": null,
+            "latency_ms": 1693.97,
+            "node_traces": [
+              {
+                "node": "supervisor",
+                "duration_ms": 846.8416000250727,
+                "status": "ticket_request",
+                "error": null
+              },
+              {
+                "node": "ticket_agent",
+                "duration_ms": 835.1434001233429,
+                "status": "needs_clarification",
+                "error": null
+              }
+            ],
+            "tool_calls": [],
+            "conversation_id": "5a5ec94c2c804506943a907913936f35",
+            "memory_persisted": true
+          },
+          "error": null,
+          "wall_latency_ms": 1695.0448998250067,
+          "latency_ms": 1693.97,
+          "usage": {
+            "prompt_tokens": 1643,
+            "completion_tokens": 117
+          },
+          "supervisor_latencies_ms": [
+            846.8416000250727
+          ],
+          "tool_executions": []
+        }
+      ],
+      "tool_selection": [
+        {
+          "message": "把刚才那个工单的问题描述再改一下。",
+          "expected_tool_options": [
+            [],
+            [
+              "get_ticket_draft"
+            ],
+            [
+              "update_ticket_draft"
+            ],
+            [
+              "get_ticket_draft",
+              "update_ticket_draft"
+            ]
+          ],
+          "actual_tools": [],
+          "correct": true
+        }
+      ],
+      "tool_executions": [],
+      "direct_outcomes": [],
+      "seed_draft_ids": [
+        "2bb94cb5a71543c28d7bc3816f824617"
+      ],
+      "total_latency_ms": 1800.969700096175,
+      "claimed_success_db_mismatch": false,
+      "isolated_paths": {
+        "tickets": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\approved_ticket_update_block\\tickets.db",
+        "conversations": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\approved_ticket_update_block\\conversations.db",
+        "checkpoints": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\approved_ticket_update_block\\approval_checkpoints.db",
+        "qdrant": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\approved_ticket_update_block\\qdrant",
+        "bm25": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\approved_ticket_update_block\\bm25"
+      }
+    },
+    {
+      "task_id": "invalid_tool_arguments",
+      "name": "非法工具参数被拒绝",
+      "category": "tool_validation",
+      "success": true,
+      "failure_reasons": [],
+      "assertions": [
+        {
+          "assertion": "direct_error_code",
+          "passed": true,
+          "detail": "error_code=INVALID_TOOL_ARGUMENTS"
+        },
+        {
+          "assertion": "draft_count_equals",
+          "passed": true,
+          "detail": "draft_count=0"
+        }
+      ],
+      "turns": [],
+      "tool_selection": [],
+      "tool_executions": [
+        {
+          "name": "direct_tool",
+          "status": "error",
+          "error": "INVALID_TOOL_ARGUMENTS",
+          "success": false,
+          "expected_rejection": true,
+          "duration_ms": 0.053999945521354675
+        }
+      ],
+      "direct_outcomes": [
+        {
+          "outcome": {
+            "ok": false,
+            "status": "error",
+            "message": "Tool arguments were not valid JSON.",
+            "draft": null,
+            "created": false,
+            "error_code": "INVALID_TOOL_ARGUMENTS",
+            "missing_fields": []
+          },
+          "duration_ms": 0.053999945521354675,
+          "expected_rejection": true
+        }
+      ],
+      "seed_draft_ids": [],
+      "total_latency_ms": 39.44970015436411,
+      "claimed_success_db_mismatch": false,
+      "isolated_paths": {
+        "tickets": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\invalid_tool_arguments\\tickets.db",
+        "conversations": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\invalid_tool_arguments\\conversations.db",
+        "checkpoints": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\invalid_tool_arguments\\approval_checkpoints.db",
+        "qdrant": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\invalid_tool_arguments\\qdrant",
+        "bm25": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\invalid_tool_arguments\\bm25"
+      }
+    },
+    {
+      "task_id": "unknown_tool_name",
+      "name": "未知工具被白名单拒绝",
+      "category": "tool_validation",
+      "success": true,
+      "failure_reasons": [],
+      "assertions": [
+        {
+          "assertion": "direct_error_code",
+          "passed": true,
+          "detail": "error_code=UNKNOWN_TOOL"
+        },
+        {
+          "assertion": "draft_count_equals",
+          "passed": true,
+          "detail": "draft_count=0"
+        }
+      ],
+      "turns": [],
+      "tool_selection": [],
+      "tool_executions": [
+        {
+          "name": "direct_tool",
+          "status": "error",
+          "error": "UNKNOWN_TOOL",
+          "success": false,
+          "expected_rejection": true,
+          "duration_ms": 0.03260001540184021
+        }
+      ],
+      "direct_outcomes": [
+        {
+          "outcome": {
+            "ok": false,
+            "status": "error",
+            "message": "Tool 'execute_python' is not allowed.",
+            "draft": null,
+            "created": false,
+            "error_code": "UNKNOWN_TOOL",
+            "missing_fields": []
+          },
+          "duration_ms": 0.03260001540184021,
+          "expected_rejection": true
+        }
+      ],
+      "seed_draft_ids": [],
+      "total_latency_ms": 36.463200114667416,
+      "claimed_success_db_mismatch": false,
+      "isolated_paths": {
+        "tickets": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\unknown_tool_name\\tickets.db",
+        "conversations": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\unknown_tool_name\\conversations.db",
+        "checkpoints": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\unknown_tool_name\\approval_checkpoints.db",
+        "qdrant": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\unknown_tool_name\\qdrant",
+        "bm25": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\unknown_tool_name\\bm25"
+      }
+    },
+    {
+      "task_id": "cross_conversation_access",
+      "name": "跨会话草稿访问被拒绝",
+      "category": "conversation_isolation",
+      "success": false,
+      "failure_reasons": [
+        "refusal_match: errors=[]"
+      ],
+      "assertions": [
+        {
+          "assertion": "seed_draft_unchanged",
+          "passed": true,
+          "detail": "actual={'id': 'e6fbe42a4b0d4a67996dc8198920c9b9', 'title': '会话 A 私有草稿', 'description': '只允许会话 A 访问。', 'device_or_system': '隔离测试设备', 'status': 'draft', 'version': 1, 'created_at': '2026-11-16T01:47:03.210688Z', 'updated_at': '2026-11-16T01:47:03.210688Z'}"
+        },
+        {
+          "assertion": "refusal_match",
+          "passed": false,
+          "detail": "errors=[]"
+        },
+        {
+          "assertion": "conversation_reference_count_equals",
+          "passed": true,
+          "detail": "reference_count=0"
+        }
+      ],
+      "turns": [
+        {
+          "message": "修改草稿 e6fbe42a4b0d4a67996dc8198920c9b9 的问题描述为跨会话篡改。",
+          "expected_intent": "ticket_request",
+          "actual_intent": "clarification",
+          "expected_tool_options": [
+            [],
+            [
+              "get_ticket_draft"
+            ],
+            [
+              "update_ticket_draft"
+            ],
+            [
+              "get_ticket_draft",
+              "update_ticket_draft"
+            ]
+          ],
+          "actual_tools": [],
+          "tool_selection_correct": true,
+          "response": {
+            "intent": "clarification",
+            "status": "needs_clarification",
+            "answer": "请问您是想修改某个工单草稿的问题描述，还是想查询关于草稿修改的知识/流程？",
+            "ticket_draft": null,
+            "sources": [],
+            "executed_nodes": [
+              "supervisor",
+              "clarification"
+            ],
+            "supervisor_reason": "请求提到修改草稿的问题描述，但未明确是创建/处理工单，还是查询知识或普通对话，意图不明确。",
+            "model": "deepseek-flash",
+            "usage": {
+              "prompt_tokens": 306,
+              "completion_tokens": 73
+            },
+            "error": null,
+            "latency_ms": 886.89,
+            "node_traces": [
+              {
+                "node": "supervisor",
+                "duration_ms": 875.1296999398619,
+                "status": "clarification",
+                "error": null
+              },
+              {
+                "node": "clarification",
+                "duration_ms": 0.001400010660290718,
+                "status": "needs_clarification",
+                "error": null
+              }
+            ],
+            "tool_calls": [],
+            "conversation_id": "d968ac597ed64565b15d02640d33ad44",
+            "memory_persisted": true
+          },
+          "error": null,
+          "wall_latency_ms": 888.0100999958813,
+          "latency_ms": 886.89,
+          "usage": {
+            "prompt_tokens": 306,
+            "completion_tokens": 73
+          },
+          "supervisor_latencies_ms": [
+            875.1296999398619
+          ],
+          "tool_executions": []
+        }
+      ],
+      "tool_selection": [
+        {
+          "message": "修改草稿 e6fbe42a4b0d4a67996dc8198920c9b9 的问题描述为跨会话篡改。",
+          "expected_tool_options": [
+            [],
+            [
+              "get_ticket_draft"
+            ],
+            [
+              "update_ticket_draft"
+            ],
+            [
+              "get_ticket_draft",
+              "update_ticket_draft"
+            ]
+          ],
+          "actual_tools": [],
+          "correct": true
+        }
+      ],
+      "tool_executions": [],
+      "direct_outcomes": [],
+      "seed_draft_ids": [
+        "e6fbe42a4b0d4a67996dc8198920c9b9"
+      ],
+      "total_latency_ms": 959.9925000220537,
+      "claimed_success_db_mismatch": false,
+      "isolated_paths": {
+        "tickets": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\cross_conversation_access\\tickets.db",
+        "conversations": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\cross_conversation_access\\conversations.db",
+        "checkpoints": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\cross_conversation_access\\approval_checkpoints.db",
+        "qdrant": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\cross_conversation_access\\qdrant",
+        "bm25": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\cross_conversation_access\\bm25"
+      }
+    },
+    {
+      "task_id": "idempotent_create_retry",
+      "name": "重复工具调用保持幂等",
+      "category": "idempotency",
+      "success": true,
+      "failure_reasons": [],
+      "assertions": [
+        {
+          "assertion": "direct_idempotent_same_draft",
+          "passed": true,
+          "detail": "created=[True, False]"
+        },
+        {
+          "assertion": "draft_count_equals",
+          "passed": true,
+          "detail": "draft_count=1"
+        }
+      ],
+      "turns": [],
+      "tool_selection": [],
+      "tool_executions": [
+        {
+          "name": "direct_tool",
+          "status": "created",
+          "error": null,
+          "success": true,
+          "expected_rejection": false,
+          "duration_ms": 26.523999869823456
+        },
+        {
+          "name": "direct_tool",
+          "status": "created",
+          "error": null,
+          "success": true,
+          "expected_rejection": false,
+          "duration_ms": 1.0454999282956123
+        }
+      ],
+      "direct_outcomes": [
+        {
+          "outcome": {
+            "ok": true,
+            "status": "created",
+            "message": "工单草稿已保存，ID: bc20bc1f0ef245658298e1dba9f7bfdc。",
+            "draft": {
+              "id": "bc20bc1f0ef245658298e1dba9f7bfdc",
+              "title": "幂等评测工单",
+              "description": "同一工具调用只创建一份草稿。",
+              "device_or_system": "评测设备",
+              "status": "draft",
+              "version": 1,
+              "created_at": "2026-11-16T01:47:04.190759Z",
+              "updated_at": "2026-11-16T01:47:04.190759Z"
+            },
+            "created": true,
+            "error_code": null,
+            "missing_fields": []
+          },
+          "duration_ms": 26.523999869823456,
+          "expected_rejection": false
+        },
+        {
+          "outcome": {
+            "ok": true,
+            "status": "created",
+            "message": "该工具调用已存在，返回工单草稿 ID: bc20bc1f0ef245658298e1dba9f7bfdc。",
+            "draft": {
+              "id": "bc20bc1f0ef245658298e1dba9f7bfdc",
+              "title": "幂等评测工单",
+              "description": "同一工具调用只创建一份草稿。",
+              "device_or_system": "评测设备",
+              "status": "draft",
+              "version": 1,
+              "created_at": "2026-11-16T01:47:04.190759Z",
+              "updated_at": "2026-11-16T01:47:04.190759Z"
+            },
+            "created": false,
+            "error_code": null,
+            "missing_fields": []
+          },
+          "duration_ms": 1.0454999282956123,
+          "expected_rejection": false
+        }
+      ],
+      "seed_draft_ids": [],
+      "total_latency_ms": 60.15129992738366,
+      "claimed_success_db_mismatch": false,
+      "isolated_paths": {
+        "tickets": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\idempotent_create_retry\\tickets.db",
+        "conversations": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\idempotent_create_retry\\conversations.db",
+        "checkpoints": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\idempotent_create_retry\\approval_checkpoints.db",
+        "qdrant": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\idempotent_create_retry\\qdrant",
+        "bm25": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\idempotent_create_retry\\bm25"
+      }
+    },
+    {
+      "task_id": "query_then_modify_existing",
+      "name": "连续查询并修改已有工单",
+      "category": "multi_turn",
+      "success": true,
+      "failure_reasons": [],
+      "assertions": [
+        {
+          "assertion": "turn_draft_ids_equal",
+          "passed": true,
+          "detail": "first=09ce07c7bbe448709f1903c4c5559f07 second=09ce07c7bbe448709f1903c4c5559f07"
+        },
+        {
+          "assertion": "last_response_description_contains",
+          "passed": true,
+          "detail": "description=无法连接 wi-fi。"
+        },
+        {
+          "assertion": "seed_draft_version_at_least",
+          "passed": true,
+          "detail": "version=2"
+        }
+      ],
+      "turns": [
+        {
+          "message": "先查看一下刚才那个工单。",
+          "expected_intent": "ticket_request",
+          "actual_intent": "ticket_request",
+          "expected_tool_options": [
+            [
+              "get_ticket_draft"
+            ]
+          ],
+          "actual_tools": [
+            "get_ticket_draft"
+          ],
+          "tool_selection_correct": true,
+          "response": {
+            "intent": "ticket_request",
+            "status": "ticket_draft_ready",
+            "answer": "已查询到工单草稿 ID: 09ce07c7bbe448709f1903c4c5559f07。",
+            "ticket_draft": {
+              "id": "09ce07c7bbe448709f1903c4c5559f07",
+              "title": "电脑网络异常",
+              "description": "原来的网络描述。",
+              "device_or_system": "办公电脑",
+              "status": "draft",
+              "version": 1,
+              "created_at": "2026-11-16T01:47:04.233799Z",
+              "updated_at": "2026-11-16T01:47:04.233799Z"
+            },
+            "sources": [],
+            "executed_nodes": [
+              "supervisor",
+              "ticket_agent",
+              "ticket_tools",
+              "ticket_agent"
+            ],
+            "supervisor_reason": "用户要求查看刚才创建的工单，属于对工单的处理/查询操作",
+            "model": "deepseek-flash",
+            "usage": {
+              "prompt_tokens": 3138,
+              "completion_tokens": 244
+            },
+            "error": null,
+            "latency_ms": 4584.45,
+            "node_traces": [
+              {
+                "node": "supervisor",
+                "duration_ms": 855.9604999609292,
+                "status": "ticket_request",
+                "error": null
+              },
+              {
+                "node": "ticket_agent",
+                "duration_ms": 1023.063300177455,
+                "status": "tool_calls_requested",
+                "error": null
+              },
+              {
+                "node": "ticket_tools",
+                "duration_ms": 1.3506999239325523,
+                "status": "completed",
+                "error": null
+              },
+              {
+                "node": "tool:get_ticket_draft",
+                "duration_ms": 1.3437001034617424,
+                "status": "retrieved",
+                "error": null
+              },
+              {
+                "node": "ticket_agent",
+                "duration_ms": 2690.579100046307,
+                "status": "ticket_draft_ready",
+                "error": null
+              }
+            ],
+            "tool_calls": [
+              {
+                "tool_call_id": "call_00_CmAQtd2Hoz8ZQfE8OCVT0397",
+                "name": "get_ticket_draft",
+                "status": "retrieved",
+                "duration_ms": 1.3461001217365265,
+                "error": null
+              }
+            ],
+            "conversation_id": "0114caf856df497883f7ce8e5f17c96c",
+            "memory_persisted": true
+          },
+          "error": null,
+          "wall_latency_ms": 4585.611100075766,
+          "latency_ms": 4584.45,
+          "usage": {
+            "prompt_tokens": 3138,
+            "completion_tokens": 244
+          },
+          "supervisor_latencies_ms": [
+            855.9604999609292
+          ],
+          "tool_executions": [
+            {
+              "name": "get_ticket_draft",
+              "status": "retrieved",
+              "error": null,
+              "success": true,
+              "expected_rejection": false,
+              "duration_ms": 1.3461001217365265
+            }
+          ]
+        },
+        {
+          "message": "再把这个问题描述改成无法连接 Wi-Fi。",
+          "expected_intent": "ticket_request",
+          "actual_intent": "ticket_request",
+          "expected_tool_options": [
+            [
+              "update_ticket_draft"
+            ],
+            [
+              "get_ticket_draft",
+              "update_ticket_draft"
+            ]
+          ],
+          "actual_tools": [
+            "update_ticket_draft"
+          ],
+          "tool_selection_correct": true,
+          "response": {
+            "intent": "ticket_request",
+            "status": "ticket_draft_ready",
+            "answer": "工单草稿 09ce07c7bbe448709f1903c4c5559f07 已更新，尚未创建正式工单。",
+            "ticket_draft": {
+              "id": "09ce07c7bbe448709f1903c4c5559f07",
+              "title": "电脑网络异常",
+              "description": "无法连接 Wi-Fi。",
+              "device_or_system": "办公电脑",
+              "status": "draft",
+              "version": 2,
+              "created_at": "2026-11-16T01:47:04.233799Z",
+              "updated_at": "2026-11-16T01:47:11.419891Z"
+            },
+            "sources": [],
+            "executed_nodes": [
+              "supervisor",
+              "ticket_agent",
+              "ticket_tools",
+              "ticket_agent"
+            ],
+            "supervisor_reason": "用户要求修改刚才创建的工单草稿的问题描述，属于处理工单的请求。",
+            "model": "deepseek-flash",
+            "usage": {
+              "prompt_tokens": 3434,
+              "completion_tokens": 185
+            },
+            "error": null,
+            "latency_ms": 4467.62,
+            "node_traces": [
+              {
+                "node": "supervisor",
+                "duration_ms": 1495.1237000059336,
+                "status": "ticket_request",
+                "error": null
+              },
+              {
+                "node": "ticket_agent",
+                "duration_ms": 1071.629999903962,
+                "status": "tool_calls_requested",
+                "error": null
+              },
+              {
+                "node": "ticket_tools",
+                "duration_ms": 4.741300130262971,
+                "status": "completed",
+                "error": null
+              },
+              {
+                "node": "tool:update_ticket_draft",
+                "duration_ms": 4.731700057163835,
+                "status": "updated",
+                "error": null
+              },
+              {
+                "node": "ticket_agent",
+                "duration_ms": 1878.8921998348087,
+                "status": "ticket_draft_ready",
+                "error": null
+              }
+            ],
+            "tool_calls": [
+              {
+                "tool_call_id": "call_00_HEBBK4ZkovqO7CmPwyTt3650",
+                "name": "update_ticket_draft",
+                "status": "updated",
+                "duration_ms": 4.735699854791164,
+                "error": null
+              }
+            ],
+            "conversation_id": "0114caf856df497883f7ce8e5f17c96c",
+            "memory_persisted": true
+          },
+          "error": null,
+          "wall_latency_ms": 4468.75139977783,
+          "latency_ms": 4467.62,
+          "usage": {
+            "prompt_tokens": 3434,
+            "completion_tokens": 185
+          },
+          "supervisor_latencies_ms": [
+            1495.1237000059336
+          ],
+          "tool_executions": [
+            {
+              "name": "update_ticket_draft",
+              "status": "updated",
+              "error": null,
+              "success": true,
+              "expected_rejection": false,
+              "duration_ms": 4.735699854791164
+            }
+          ]
+        }
+      ],
+      "tool_selection": [
+        {
+          "message": "先查看一下刚才那个工单。",
+          "expected_tool_options": [
+            [
+              "get_ticket_draft"
+            ]
+          ],
+          "actual_tools": [
+            "get_ticket_draft"
+          ],
+          "correct": true
+        },
+        {
+          "message": "再把这个问题描述改成无法连接 Wi-Fi。",
+          "expected_tool_options": [
+            [
+              "update_ticket_draft"
+            ],
+            [
+              "get_ticket_draft",
+              "update_ticket_draft"
+            ]
+          ],
+          "actual_tools": [
+            "update_ticket_draft"
+          ],
+          "correct": true
+        }
+      ],
+      "tool_executions": [
+        {
+          "name": "get_ticket_draft",
+          "status": "retrieved",
+          "error": null,
+          "success": true,
+          "expected_rejection": false,
+          "duration_ms": 1.3461001217365265
+        },
+        {
+          "name": "update_ticket_draft",
+          "status": "updated",
+          "error": null,
+          "success": true,
+          "expected_rejection": false,
+          "duration_ms": 4.735699854791164
+        }
+      ],
+      "direct_outcomes": [],
+      "seed_draft_ids": [
+        "09ce07c7bbe448709f1903c4c5559f07"
+      ],
+      "total_latency_ms": 9119.500600034371,
+      "claimed_success_db_mismatch": false,
+      "isolated_paths": {
+        "tickets": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\query_then_modify_existing\\tickets.db",
+        "conversations": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\query_then_modify_existing\\conversations.db",
+        "checkpoints": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\query_then_modify_existing\\approval_checkpoints.db",
+        "qdrant": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\query_then_modify_existing\\qdrant",
+        "bm25": "D:\\Projects\\OpsPilot\\storage\\e2e\\agent_eval_v1\\20261116T014540Z-6861172f\\tasks\\query_then_modify_existing\\bm25"
+      }
+    }
+  ]
+}
