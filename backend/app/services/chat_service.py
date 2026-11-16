@@ -1,5 +1,6 @@
 """Use cases for non-streaming and streaming questions."""
 
+import asyncio
 import inspect
 import logging
 from collections.abc import AsyncIterator
@@ -22,10 +23,12 @@ class ChatService:
         llm: LLMProvider,
         system_prompt: str,
         model_name: str = "unknown",
+        stream_idle_timeout_seconds: float = 45.0,
     ) -> None:
         self._llm = llm
         self._system_prompt = system_prompt
         self._model_name = model_name
+        self._stream_idle_timeout_seconds = stream_idle_timeout_seconds
 
     async def answer(
         self,
@@ -81,8 +84,34 @@ class ChatService:
             system_prompt=self._system_prompt,
             user_message=message,
         )
+        provider_iterator = provider_stream.__aiter__()
         try:
-            async for chunk in provider_stream:
+            while True:
+                try:
+                    async with asyncio.timeout(
+                        self._stream_idle_timeout_seconds
+                    ):
+                        chunk = await anext(provider_iterator)
+                except StopAsyncIteration:
+                    break
+                except TimeoutError:
+                    logger.warning(
+                        "Chat stream idle timeout request_id=%s",
+                        request_id,
+                    )
+                    yield ChatStreamEvent(
+                        event="error",
+                        data={
+                            "request_id": request_id,
+                            "code": "LLM_TIMEOUT",
+                            "message": (
+                                "The language model stopped producing "
+                                "output."
+                            ),
+                        },
+                    )
+                    return
+
                 if chunk.text:
                     yield ChatStreamEvent(
                         event="token",

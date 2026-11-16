@@ -101,6 +101,9 @@ def get_chat_service(
         llm=llm,
         system_prompt=SYSTEM_PROMPT_PATH.read_text(encoding="utf-8").strip(),
         model_name=settings.deepseek_model,
+        stream_idle_timeout_seconds=(
+            settings.deepseek_timeout_seconds + 5
+        ),
     )
 
 

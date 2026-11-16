@@ -47,6 +47,7 @@ const SUPPORTED_EVENTS = new Set([
   'done',
   'error',
 ])
+const STREAM_IDLE_TIMEOUT_MS = 45_000
 
 function parseFrame(frame: SSEFrame): ChatStreamEvent | null {
   if (!SUPPORTED_EVENTS.has(frame.event)) {
@@ -85,6 +86,9 @@ export async function readSseStream(
         terminalEventReceived = true
       }
       onEvent(event)
+      if (terminalEventReceived) {
+        break
+      }
     }
   }
 
@@ -95,6 +99,14 @@ export async function readSseStream(
         break
       }
       handleFrames(parser.push(decoder.decode(value, { stream: true })))
+      if (terminalEventReceived) {
+        try {
+          await reader.cancel()
+        } catch {
+          // The terminal event is authoritative even if cancellation races.
+        }
+        break
+      }
     }
 
     const tail = decoder.decode()
@@ -127,32 +139,73 @@ function errorMessageFromBody(body: ErrorResponse, status: number): string {
 export async function streamChat(options: {
   message: string
   signal?: AbortSignal
+  idleTimeoutMs?: number
   onEvent: (event: ChatStreamEvent) => void
 }): Promise<void> {
-  const response = await fetch('/api/v1/chat/stream', {
-    method: 'POST',
-    headers: {
-      Accept: 'text/event-stream',
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ message: options.message }),
-    signal: options.signal,
-  })
+  const controller = new AbortController()
+  const idleTimeoutMs = options.idleTimeoutMs ?? STREAM_IDLE_TIMEOUT_MS
+  let idleTimeout: ReturnType<typeof setTimeout> | undefined
+  let timedOut = false
 
-  if (!response.ok) {
-    let errorBody: ErrorResponse = {}
-    try {
-      errorBody = (await response.json()) as ErrorResponse
-    } catch {
-      // The status code is still enough to provide a useful fallback.
+  const abortFromCaller = () => controller.abort()
+  if (options.signal?.aborted) {
+    controller.abort()
+  } else {
+    options.signal?.addEventListener('abort', abortFromCaller, {
+      once: true,
+    })
+  }
+
+  const resetIdleTimeout = () => {
+    if (idleTimeout !== undefined) {
+      clearTimeout(idleTimeout)
     }
-    throw new Error(errorMessageFromBody(errorBody, response.status))
+    idleTimeout = setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, idleTimeoutMs)
   }
 
-  if (!response.body) {
-    throw new Error('当前浏览器没有收到可读取的流式响应。')
-  }
+  try {
+    resetIdleTimeout()
+    const response = await fetch('/api/v1/chat/stream', {
+      method: 'POST',
+      headers: {
+        Accept: 'text/event-stream',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ message: options.message }),
+      signal: controller.signal,
+    })
 
-  await readSseStream(response.body, options.onEvent)
+    if (!response.ok) {
+      let errorBody: ErrorResponse = {}
+      try {
+        errorBody = (await response.json()) as ErrorResponse
+      } catch {
+        // The status code is still enough to provide a useful fallback.
+      }
+      throw new Error(errorMessageFromBody(errorBody, response.status))
+    }
+
+    if (!response.body) {
+      throw new Error('当前浏览器没有收到可读取的流式响应。')
+    }
+
+    await readSseStream(response.body, (event) => {
+      resetIdleTimeout()
+      options.onEvent(event)
+    })
+  } catch (error) {
+    if (timedOut) {
+      throw new Error('模型响应超时，请稍后重试。')
+    }
+    throw error
+  } finally {
+    if (idleTimeout !== undefined) {
+      clearTimeout(idleTimeout)
+    }
+    options.signal?.removeEventListener('abort', abortFromCaller)
+  }
 }
 

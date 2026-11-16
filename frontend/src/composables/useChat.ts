@@ -70,14 +70,15 @@ export function useChat() {
       content: message,
       status: 'complete',
     }
-    const assistantMessage: ChatMessage = {
+    const newAssistantMessage: ChatMessage = {
       id: createId(),
       role: 'assistant',
       content: '',
       status: 'streaming',
     }
 
-    messages.value.push(userMessage, assistantMessage)
+    messages.value.push(userMessage, newAssistantMessage)
+    const assistantMessage = messages.value[messages.value.length - 1]
     usage.value = null
     isGenerating.value = true
     const controller = new AbortController()

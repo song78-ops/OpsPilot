@@ -1,16 +1,33 @@
 """SSE chat tests using an in-process Fake LLM."""
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 
 import httpx
 
-from app.api.deps import get_llm_client
+from app.api.deps import get_chat_service, get_llm_client
 from app.core.exceptions import LLMTimeoutError
 from app.llm.base import LLMStreamChunk
 from app.main import app
 from app.services.chat_service import ChatService
 from tests.fakes import FakeLLM
+
+
+class HangingLLM:
+    """Provider stream that opens successfully but never emits a chunk."""
+
+    def __init__(self) -> None:
+        self.closed = asyncio.Event()
+
+    async def stream(self, *, system_prompt: str, user_message: str):
+        assert system_prompt
+        assert user_message
+        try:
+            await asyncio.Event().wait()
+            yield LLMStreamChunk(text="unreachable")
+        finally:
+            self.closed.set()
 
 
 def override_llm(fake_llm: FakeLLM):
@@ -40,7 +57,7 @@ async def test_stream_returns_incremental_events(client: httpx.AsyncClient) -> N
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
-    assert response.headers["cache-control"] == "no-cache"
+    assert response.headers["cache-control"] == "no-cache, no-transform"
 
     events = parse_sse(response.text)
     assert [name for name, _ in events] == [
@@ -97,6 +114,30 @@ async def test_stream_emits_error_after_meta_and_keeps_http_200(
     assert [name for name, _ in events] == ["meta", "token", "error"]
     assert events[-1][1]["code"] == "LLM_TIMEOUT"
     assert fake_llm.stream_closed is True
+
+
+async def test_idle_provider_stream_emits_timeout_and_finishes(
+    client: httpx.AsyncClient,
+) -> None:
+    llm = HangingLLM()
+    service = ChatService(
+        llm=llm,  # type: ignore[arg-type]
+        system_prompt="system prompt",
+        model_name="fake-deepseek",
+        stream_idle_timeout_seconds=0.02,
+    )
+    app.dependency_overrides[get_chat_service] = lambda: service
+
+    response = await client.post(
+        "/api/v1/chat/stream",
+        json={"message": "测试无输出超时"},
+    )
+
+    assert response.status_code == 200
+    events = parse_sse(response.text)
+    assert [name for name, _ in events] == ["meta", "error"]
+    assert events[-1][1]["code"] == "LLM_TIMEOUT"
+    assert llm.closed.is_set()
 
 
 async def test_closing_consumer_closes_provider_stream() -> None:

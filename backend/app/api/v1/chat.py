@@ -11,7 +11,12 @@ from fastapi.responses import StreamingResponse
 
 from app.api.deps import get_chat_service
 from app.api.sse import encode_sse_event
-from app.schemas.chat import ChatRequest, ChatResponse
+from app.core.exceptions import ApplicationError
+from app.schemas.chat import (
+    ChatRequest,
+    ChatResponse,
+    ChatStreamEvent,
+)
 from app.services.chat_service import ChatService
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -64,12 +69,44 @@ async def chat_stream(
         except asyncio.CancelledError:
             logger.info("SSE request canceled request_id=%s", request_id)
             raise
+        except ApplicationError as exc:
+            logger.warning(
+                "SSE generation failed request_id=%s code=%s",
+                request_id,
+                exc.code,
+            )
+            yield encode_sse_event(
+                ChatStreamEvent(
+                    event="error",
+                    data={
+                        "request_id": request_id,
+                        "code": exc.code,
+                        "message": exc.message,
+                    },
+                )
+            )
+        except Exception as exc:
+            logger.error(
+                "Unexpected SSE failure request_id=%s type=%s",
+                request_id,
+                type(exc).__name__,
+            )
+            yield encode_sse_event(
+                ChatStreamEvent(
+                    event="error",
+                    data={
+                        "request_id": request_id,
+                        "code": "STREAM_INTERNAL_ERROR",
+                        "message": "The response stream was interrupted.",
+                    },
+                )
+            )
 
     return StreamingResponse(
         event_stream(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
             "X-Accel-Buffering": "no",
         },
     )

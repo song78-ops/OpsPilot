@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { watch } from 'vue'
 
 import { useChat } from './useChat'
 
@@ -46,6 +47,16 @@ describe('useChat', () => {
       ),
     )
     const chat = useChat()
+    const observedStatuses: string[] = []
+    watch(
+      () => chat.messages.value[1]?.status,
+      (status) => {
+        if (status) {
+          observedStatuses.push(status)
+        }
+      },
+      { flush: 'sync' },
+    )
 
     await chat.sendMessage('测试消息')
 
@@ -58,6 +69,7 @@ describe('useChat', () => {
       usage: { prompt_tokens: 4, completion_tokens: 2 },
     })
     expect(chat.isGenerating.value).toBe(false)
+    expect(observedStatuses).toContain('complete')
   })
 
   it('shows a friendly error event without pretending the answer completed', async () => {
@@ -84,6 +96,28 @@ describe('useChat', () => {
 
     expect(chat.messages.value[1].status).toBe('error')
     expect(chat.messages.value[1].error).toContain('模型响应超时')
+    expect(chat.isGenerating.value).toBe(false)
+  })
+
+  it('ends loading when the stream closes without a terminal event', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        responseFromChunks([
+          event('meta', {
+            request_id: 'r-broken',
+            model: 'deepseek-chat',
+            created_at: 'now',
+          }),
+        ]),
+      ),
+    )
+    const chat = useChat()
+
+    await chat.sendMessage('测试意外结束')
+
+    expect(chat.messages.value[1].status).toBe('error')
+    expect(chat.messages.value[1].error).toContain('意外结束')
     expect(chat.isGenerating.value).toBe(false)
   })
 
