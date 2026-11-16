@@ -451,7 +451,7 @@ async def test_cross_conversation_ticket_reference_is_blocked(
         await harness.close()
 
 
-async def test_multiple_editable_targets_require_explicit_clarification(
+async def test_recent_ticket_reference_selects_last_valid_draft(
     tmp_path: Path,
 ) -> None:
     harness = await make_harness(tmp_path)
@@ -500,8 +500,89 @@ async def test_multiple_editable_targets_require_explicit_clarification(
                 call_id="call-ambiguous-update",
                 name=UPDATE_TICKET_DRAFT,
                 arguments={
-                    "draft_id": second.draft.id,
-                    "description": "猜测修改",
+                    "draft_id": first.draft.id,
+                    "description": "已改为无法连接公司 Wi-Fi",
+                },
+            ),
+            final_response("需要明确目标。"),
+        ],
+    )
+    service = make_agent(harness, llm)
+    try:
+        response = await service.run(
+            message=(
+                "把刚才那个工单的问题描述改成"
+                "无法连接公司 Wi-Fi。"
+            ),
+            conversation_id=conversation.id,
+        )
+        assert response.status == "ticket_draft_ready"
+        assert response.error is None
+        assert response.ticket_draft is not None
+        assert response.ticket_draft.id == second.draft.id
+        updated = await harness.ticket_service.get(second.draft.id)
+        unchanged = await harness.ticket_service.get(first.draft.id)
+        assert updated.description == "已改为无法连接公司 Wi-Fi"
+        assert updated.version == 2
+        assert unchanged.description == "第一个问题。"
+    finally:
+        await harness.close()
+
+
+async def test_multiple_targets_without_verified_recent_ticket_require_clarification(
+    tmp_path: Path,
+) -> None:
+    harness = await make_harness(tmp_path)
+    conversation = await harness.memory.begin_or_resume(None)
+    first = await harness.ticket_service.create(
+        args=CreateTicketDraftArgs(
+            title="无最近目标一",
+            description="第一个问题。",
+            device_or_system="设备一",
+        ),
+        idempotency_key="unresolved-multi-one",
+    )
+    second = await harness.ticket_service.create(
+        args=CreateTicketDraftArgs(
+            title="无最近目标二",
+            description="第二个问题。",
+            device_or_system="设备二",
+        ),
+        idempotency_key="unresolved-multi-two",
+    )
+    for index, draft in enumerate((first.draft, second.draft), start=1):
+        await harness.memory.record_turn(
+            conversation_id=conversation.id,
+            user_content=f"创建候选草稿 {index}",
+            assistant_content=f"已创建 {draft.id}",
+            intent="ticket_request",
+            status="ticket_draft_ready",
+            tool_results=[
+                ToolResultRecord(
+                    tool_call_id=f"unresolved-seed-{index}",
+                    name=CREATE_TICKET_DRAFT,
+                    status="created",
+                    ok=True,
+                    message=f"已创建 {draft.id}",
+                    draft_id=draft.id,
+                    error_code=None,
+                )
+            ],
+            last_ticket_draft_id=draft.id,
+        )
+    await harness.conversation_repository.clear_last_ticket_draft_id(
+        conversation.id
+    )
+
+    llm = FakeLLM(
+        result=supervisor_result("ticket_request"),
+        tool_results=[
+            tool_response(
+                call_id="call-unresolved-update",
+                name=UPDATE_TICKET_DRAFT,
+                arguments={
+                    "draft_id": first.draft.id,
+                    "description": "不应猜测修改",
                 },
             ),
             final_response("需要明确目标。"),
@@ -513,11 +594,15 @@ async def test_multiple_editable_targets_require_explicit_clarification(
             message="把刚才那个工单的问题描述改一下。",
             conversation_id=conversation.id,
         )
+
         assert response.status == "needs_clarification"
         assert response.error == "TICKET_TARGET_AMBIGUOUS"
-        assert "明确" in (response.answer or "")
-        unchanged = await harness.ticket_service.get(second.draft.id)
-        assert unchanged.description == "第二个问题。"
+        assert (await harness.ticket_service.get(first.draft.id)).description == (
+            "第一个问题。"
+        )
+        assert (await harness.ticket_service.get(second.draft.id)).description == (
+            "第二个问题。"
+        )
     finally:
         await harness.close()
 

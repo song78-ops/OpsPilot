@@ -295,6 +295,69 @@ async def test_get_and_update_through_native_tool_calls(
         await repository.close()
 
 
+async def test_executor_honors_explicit_then_recent_ticket_targets(
+    tmp_path: Path,
+) -> None:
+    repository, ticket_service, executor = make_ticket_dependencies(
+        tmp_path / "tickets.db"
+    )
+    first = await ticket_service.create(
+        args=CreateTicketDraftArgs(
+            title="显式目标测试",
+            description="第一个草稿。",
+            device_or_system="设备一",
+        ),
+        idempotency_key="target-explicit-first",
+    )
+    second = await ticket_service.create(
+        args=CreateTicketDraftArgs(
+            title="最近目标测试",
+            description="第二个草稿。",
+            device_or_system="设备二",
+        ),
+        idempotency_key="target-explicit-second",
+    )
+    trusted_ids = [first.draft.id, second.draft.id]
+    try:
+        explicit_update = await executor.execute(
+            tool_call(
+                call_id="target-explicit-update",
+                name=UPDATE_TICKET_DRAFT,
+                arguments={
+                    "draft_id": first.draft.id,
+                    "description": "显式指定第一个草稿。",
+                },
+            ),
+            conversation_id="conversation-targets",
+            trusted_ticket_draft_ids=trusted_ids,
+            last_ticket_draft_id=second.draft.id,
+            user_message=(
+                f"修改工单 {first.draft.id} 的问题描述。"
+            ),
+        )
+        recent_get = await executor.execute(
+            tool_call(
+                call_id="target-recent-get",
+                name=GET_TICKET_DRAFT,
+                arguments={"draft_id": first.draft.id},
+            ),
+            conversation_id="conversation-targets",
+            trusted_ticket_draft_ids=trusted_ids,
+            last_ticket_draft_id=second.draft.id,
+            user_message="查看刚才那个工单。",
+        )
+
+        assert explicit_update.ok is True
+        assert explicit_update.draft is not None
+        assert explicit_update.draft.id == first.draft.id
+        assert explicit_update.draft.description == "显式指定第一个草稿。"
+        assert recent_get.ok is True
+        assert recent_get.draft is not None
+        assert recent_get.draft.id == second.draft.id
+    finally:
+        await repository.close()
+
+
 async def test_database_failure_is_not_reported_as_success(
     tmp_path: Path,
 ) -> None:

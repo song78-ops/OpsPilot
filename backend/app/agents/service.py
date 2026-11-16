@@ -23,7 +23,11 @@ from app.schemas.agent import (
 )
 from app.schemas.chat import TokenUsage
 from app.schemas.rag import RagSourceResponse
-from app.tools.ticket_tools import ToolExecutionOutcome
+from app.tools.ticket_tools import (
+    CREATE_TICKET_DRAFT,
+    UPDATE_TICKET_DRAFT,
+    ToolExecutionOutcome,
+)
 
 logger = logging.getLogger(__name__)
 _REQUEST_LOCKS: dict[str, asyncio.Lock] = {}
@@ -210,7 +214,14 @@ class AgentService:
             successful_drafts = [
                 result.draft_id
                 for result in tool_results
-                if result.ok and result.draft_id is not None
+                if (
+                    result.ok
+                    and result.draft_id is not None
+                    and result.name in {
+                        CREATE_TICKET_DRAFT,
+                        UPDATE_TICKET_DRAFT,
+                    }
+                )
             ]
             last_ticket_draft_id = (
                 successful_drafts[-1]

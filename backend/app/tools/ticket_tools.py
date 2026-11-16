@@ -2,6 +2,7 @@
 
 import json
 import hashlib
+import re
 from typing import Literal
 
 from pydantic import BaseModel, ValidationError
@@ -105,6 +106,7 @@ class TicketToolExecutor:
         ticket_target_ambiguous: bool = False,
         user_message: str = "",
         request_idempotency_key: str | None = None,
+        last_ticket_draft_id: str | None = None,
     ) -> ToolExecutionOutcome:
         if call.name not in ALLOWED_TOOL_NAMES:
             return ToolExecutionOutcome(
@@ -126,6 +128,7 @@ class TicketToolExecutor:
                 ticket_target_ambiguous=ticket_target_ambiguous,
                 user_message=user_message,
                 request_idempotency_key=request_idempotency_key,
+                last_ticket_draft_id=last_ticket_draft_id,
             )
         except ValidationError as exc:
             return ToolExecutionOutcome(
@@ -195,6 +198,7 @@ class TicketToolExecutor:
         ticket_target_ambiguous: bool,
         user_message: str,
         request_idempotency_key: str | None,
+        last_ticket_draft_id: str | None,
     ) -> ToolExecutionOutcome:
         if call.name == CREATE_TICKET_DRAFT:
             idempotency_key = self._idempotency_key(
@@ -222,13 +226,22 @@ class TicketToolExecutor:
 
         if call.name == GET_TICKET_DRAFT:
             args = GetTicketDraftArgs.model_validate(arguments)
+            draft_id, target_error = self._resolve_target_id(
+                requested_draft_id=args.draft_id,
+                trusted_ticket_draft_ids=trusted_ticket_draft_ids,
+                ticket_target_ambiguous=ticket_target_ambiguous,
+                user_message=user_message,
+                last_ticket_draft_id=last_ticket_draft_id,
+            )
+            if target_error is not None:
+                return target_error
             scope_error = self._ticket_scope_error(
-                draft_id=args.draft_id,
+                draft_id=draft_id,
                 trusted_ticket_draft_ids=trusted_ticket_draft_ids,
             )
             if scope_error is not None:
                 return scope_error
-            draft = await self._service.get(args.draft_id)
+            draft = await self._service.get(draft_id)
             return ToolExecutionOutcome(
                 ok=True,
                 status="retrieved",
@@ -237,24 +250,21 @@ class TicketToolExecutor:
             )
 
         args = UpdateTicketDraftArgs.model_validate(arguments)
+        draft_id, target_error = self._resolve_target_id(
+            requested_draft_id=args.draft_id,
+            trusted_ticket_draft_ids=trusted_ticket_draft_ids,
+            ticket_target_ambiguous=ticket_target_ambiguous,
+            user_message=user_message,
+            last_ticket_draft_id=last_ticket_draft_id,
+        )
+        if target_error is not None:
+            return target_error
         scope_error = self._ticket_scope_error(
-            draft_id=args.draft_id,
+            draft_id=draft_id,
             trusted_ticket_draft_ids=trusted_ticket_draft_ids,
         )
         if scope_error is not None:
             return scope_error
-        if (
-            ticket_target_ambiguous
-            and args.draft_id not in user_message
-        ):
-            return ToolExecutionOutcome(
-                ok=False,
-                status="needs_more_info",
-                message=(
-                    "当前会话存在多个可编辑工单草稿，请明确要修改的草稿 ID。"
-                ),
-                error_code="TICKET_TARGET_AMBIGUOUS",
-            )
         values = TicketDraftUpdateRequest(
             title=args.title,
             description=args.description,
@@ -262,7 +272,7 @@ class TicketToolExecutor:
         )
         if request_idempotency_key is not None:
             mutation = await self._service.update_with_idempotency(
-                args.draft_id,
+                draft_id,
                 values,
                 idempotency_key=self._idempotency_key(
                     call=call,
@@ -284,7 +294,7 @@ class TicketToolExecutor:
                 replayed=mutation.replayed,
             )
 
-        draft = await self._service.update(args.draft_id, values)
+        draft = await self._service.update(draft_id, values)
         return ToolExecutionOutcome(
             ok=True,
             status="updated",
@@ -310,6 +320,61 @@ class TicketToolExecutor:
                 f"{key_scope}"
             ).encode("utf-8")
         ).hexdigest()
+
+    @staticmethod
+    def _resolve_target_id(
+        *,
+        requested_draft_id: str,
+        trusted_ticket_draft_ids: list[str] | None,
+        ticket_target_ambiguous: bool,
+        user_message: str,
+        last_ticket_draft_id: str | None,
+    ) -> tuple[str, ToolExecutionOutcome | None]:
+        explicit_ids = {
+            match.lower()
+            for match in re.findall(
+                r"(?<![0-9a-fA-F])[0-9a-fA-F]{32}(?![0-9a-fA-F])",
+                user_message,
+            )
+        }
+        trusted_ids = (
+            set(trusted_ticket_draft_ids)
+            if trusted_ticket_draft_ids is not None
+            else None
+        )
+        explicit_ids = (
+            explicit_ids
+            if trusted_ids is None
+            else explicit_ids & trusted_ids
+        )
+        if len(explicit_ids) == 1:
+            return next(iter(explicit_ids)), None
+        if len(explicit_ids) > 1:
+            return requested_draft_id, ToolExecutionOutcome(
+                ok=False,
+                status="needs_more_info",
+                message="请求中包含多个工单草稿 ID，请明确唯一目标。",
+                error_code="TICKET_TARGET_AMBIGUOUS",
+            )
+        if (
+            last_ticket_draft_id is not None
+            and (
+                trusted_ids is None
+                or last_ticket_draft_id in trusted_ids
+            )
+        ):
+            return last_ticket_draft_id, None
+        if ticket_target_ambiguous:
+            return requested_draft_id, ToolExecutionOutcome(
+                ok=False,
+                status="needs_more_info",
+                message=(
+                    "当前会话存在多个可编辑工单草稿，且最近目标无法确认，"
+                    "请明确要操作的草稿 ID。"
+                ),
+                error_code="TICKET_TARGET_AMBIGUOUS",
+            )
+        return requested_draft_id, None
 
     @staticmethod
     def _ticket_scope_error(

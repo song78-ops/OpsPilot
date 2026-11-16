@@ -423,6 +423,9 @@ class AgentNodes:
                 request_idempotency_key=state.get(
                     "request_idempotency_key"
                 ),
+                last_ticket_draft_id=state.get(
+                    "last_ticket_draft_id"
+                ),
             )
             if (
                 trusted_ids is not None

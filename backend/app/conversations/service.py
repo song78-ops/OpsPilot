@@ -180,7 +180,10 @@ class ConversationMemoryService:
             messages=history,
             candidate_drafts=drafts,
             last_ticket_draft=last_ticket,
-            target_ambiguous=len(editable_ids) > 1,
+            target_ambiguous=(
+                last_ticket is None
+                and len(editable_ids) > 1
+            ),
             metadata={
                 "history_messages": len(history),
                 "history_tokens": sum(
@@ -387,7 +390,17 @@ def ticket_context_text(context: ConversationContext) -> str:
             f"{context.last_ticket_draft.id} "
             f"status={context.last_ticket_draft.status}"
         )
-    for draft in context.candidate_drafts:
+        other_count = len(context.candidate_drafts) - 1
+        if other_count > 0:
+            lines.append(
+                f"{other_count} older ticket draft(s) also belong to this "
+                "conversation. Do not infer one as the target of a "
+                "referential request."
+            )
+        visible_drafts = [context.last_ticket_draft]
+    else:
+        visible_drafts = context.candidate_drafts
+    for draft in visible_drafts:
         lines.append(
             f"- draft_id={draft.id} status={draft.status}"
         )
@@ -397,14 +410,16 @@ def ticket_context_text(context: ConversationContext) -> str:
     )
     if context.target_ambiguous:
         lines.append(
-            "Multiple editable drafts are possible targets. If the current "
-            "request does not explicitly contain the target draft_id, ask "
-            "the user to specify it and do not call update_ticket_draft."
+            "No recent ticket target can be verified and multiple editable "
+            "drafts are possible. If the current request does not explicitly "
+            "contain the target draft_id, ask the user to specify it and do "
+            "not call update_ticket_draft."
         )
     elif context.last_ticket_draft is not None:
         lines.append(
             "For a follow-up reference such as '刚才那个工单', use "
-            "last_ticket_draft_id when that draft is editable."
+            "last_ticket_draft_id. If that draft is not editable, report its "
+            "current status and do not substitute another draft."
         )
     lines.append("</trusted_ticket_context>")
     return "\n".join(lines)
