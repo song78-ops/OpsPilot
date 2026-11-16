@@ -1,0 +1,77 @@
+name: opspilot
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    init: true
+    environment:
+      APP_ENV: docker
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      REAL_LLM_MAX_REQUESTS: ${REAL_LLM_MAX_REQUESTS:-0}
+      REAL_LLM_MAX_TOKENS: ${REAL_LLM_MAX_TOKENS:-0}
+      REAL_LLM_MAX_COST_USD: ${REAL_LLM_MAX_COST_USD:-0}
+      REAL_LLM_MAX_OUTPUT_TOKENS: ${REAL_LLM_MAX_OUTPUT_TOKENS:-1024}
+      REAL_LLM_INPUT_COST_PER_MILLION_USD: ${REAL_LLM_INPUT_COST_PER_MILLION_USD:-0}
+      REAL_LLM_OUTPUT_COST_PER_MILLION_USD: ${REAL_LLM_OUTPUT_COST_PER_MILLION_USD:-0}
+    volumes:
+      - type: bind
+        source: ./storage
+        target: /app/storage
+    expose:
+      - "8000"
+    networks:
+      opspilot:
+        ipv4_address: 172.30.240.11
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 6
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:80"
+    networks:
+      opspilot:
+        ipv4_address: 172.30.240.10
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --quiet
+        - --tries=1
+        - --spider
+        - http://127.0.0.1/healthz
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 6
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  opspilot:
+    name: opspilot_local
+    ipam:
+      config:
+        - subnet: 172.30.240.0/24

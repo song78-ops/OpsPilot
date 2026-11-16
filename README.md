@@ -45,6 +45,21 @@ DEEPSEEK_API_KEY=your_deepseek_api_key
 
 `.env` 已加入 `.gitignore`，不要提交真实密钥。
 
+## Docker 本地部署
+
+项目提供 Vue3 + Nginx 和 FastAPI 的双容器 Compose。默认使用 Mock，前端只监听
+`127.0.0.1:8080`，后端仅在 Compose 内部网络提供 `8000`：
+
+```powershell
+cd D:\Projects\OpsPilot
+docker compose up --build -d
+```
+
+访问 <http://127.0.0.1:8080>。`storage` 目录绑定挂载到后端容器，会话、工单、
+审批 Checkpoint、索引和模型缓存均不进入镜像。真实 DeepSeek 配置、模型准备、
+健康检查、重启恢复和审批代理安全边界见
+[Docker 部署说明](docs/docker-deployment.md)。
+
 ## 启动服务
 
 确保当前目录是 `backend`，虚拟环境已激活：
