@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -24,6 +25,13 @@ class Settings(BaseSettings):
     deepseek_max_retries: int = Field(default=1, ge=0, le=5)
 
     llm_temperature: float = Field(default=0.2, ge=0.0, le=2.0)
+    llm_provider: Literal["mock", "deepseek", "disabled"] = "mock"
+    real_llm_max_requests: int = Field(default=0, ge=0)
+    real_llm_max_tokens: int = Field(default=0, ge=0)
+    real_llm_max_cost_usd: float = Field(default=0.0, ge=0.0)
+    real_llm_max_output_tokens: int = Field(default=1_024, ge=1, le=32_000)
+    real_llm_input_cost_per_million_usd: float = Field(default=0.0, ge=0.0)
+    real_llm_output_cost_per_million_usd: float = Field(default=0.0, ge=0.0)
 
     document_storage_dir: Path = PROJECT_DIR / "storage" / "documents"
     document_max_upload_bytes: int = Field(
@@ -107,6 +115,24 @@ class Settings(BaseSettings):
                 "RERANKER_CANDIDATE_K must not exceed "
                 "RAG_RETRIEVAL_MAX_TOP_K"
             )
+        if self.llm_provider == "deepseek":
+            if (
+                self.real_llm_max_requests <= 0
+                or self.real_llm_max_tokens <= 0
+                or self.real_llm_max_cost_usd <= 0
+            ):
+                raise ValueError(
+                    "DeepSeek provider requires positive request, token, "
+                    "and cost budgets"
+                )
+            if (
+                self.real_llm_input_cost_per_million_usd <= 0
+                or self.real_llm_output_cost_per_million_usd <= 0
+            ):
+                raise ValueError(
+                    "DeepSeek provider requires positive input and output "
+                    "cost rates"
+                )
         return self
 
     @property

@@ -19,7 +19,9 @@ from app.conversations.service import ConversationMemoryService
 from app.core.config import Settings, get_settings
 from app.core.exceptions import ApplicationError, ConfigurationError
 from app.llm.base import LLMProvider
+from app.llm.budget import LLMBudgetController, LLMBudgetLimits
 from app.llm.deepseek import DeepSeekLLM
+from app.llm.mock import MockLLM
 from app.rag.service import DocumentService
 from app.rag.embeddings.bge import BgeEmbeddingModel
 from app.rag.retrieval.bm25 import BM25IndexStore
@@ -70,7 +72,18 @@ _ACTIVE_CONVERSATION_REPOSITORIES: list[
 async def get_llm_client(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> AsyncIterator[LLMProvider]:
-    """Create a scoped DeepSeek client and close it after the request."""
+    """Create the configured provider; mock is the low-cost default."""
+    if settings.llm_provider == "mock":
+        client = MockLLM()
+        try:
+            yield client
+        finally:
+            await client.aclose()
+        return
+    if settings.llm_provider == "disabled":
+        from app.core.exceptions import LLMDisabledError
+
+        raise LLMDisabledError()
     if settings.deepseek_api_key is None or not (
         settings.deepseek_api_key.get_secret_value().strip()
     ):
@@ -85,11 +98,47 @@ async def get_llm_client(
         timeout_seconds=settings.deepseek_timeout_seconds,
         max_retries=settings.deepseek_max_retries,
         temperature=settings.llm_temperature,
+        budget=get_llm_budget_controller(settings),
     )
     try:
         yield client
     finally:
         await client.aclose()
+
+
+@lru_cache
+def _build_llm_budget_controller(
+    max_requests: int,
+    max_tokens: int,
+    max_cost_usd: float,
+    max_output_tokens: int,
+    input_cost_per_million_usd: float,
+    output_cost_per_million_usd: float,
+) -> LLMBudgetController:
+    return LLMBudgetController(
+        LLMBudgetLimits(
+            enabled=True,
+            max_requests=max_requests,
+            max_tokens=max_tokens,
+            max_cost_usd=max_cost_usd,
+            max_output_tokens=max_output_tokens,
+            input_cost_per_million_usd=input_cost_per_million_usd,
+            output_cost_per_million_usd=output_cost_per_million_usd,
+        )
+    )
+
+
+def get_llm_budget_controller(
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> LLMBudgetController:
+    return _build_llm_budget_controller(
+        settings.real_llm_max_requests,
+        settings.real_llm_max_tokens,
+        settings.real_llm_max_cost_usd,
+        settings.real_llm_max_output_tokens,
+        settings.real_llm_input_cost_per_million_usd,
+        settings.real_llm_output_cost_per_million_usd,
+    )
 
 
 def get_chat_service(
@@ -435,6 +484,7 @@ async def close_application_resources() -> None:
         await repository.close()
     _ACTIVE_CONVERSATION_REPOSITORIES.clear()
     _build_conversation_repository.cache_clear()
+    _build_llm_budget_controller.cache_clear()
 
 
 def get_agent_service(

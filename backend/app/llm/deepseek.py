@@ -27,6 +27,7 @@ from app.llm.base import (
     LLMToolCall,
     LLMToolResponse,
 )
+from app.llm.budget import BudgetReservation, LLMBudgetController
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +45,11 @@ class DeepSeekLLM:
         max_retries: int,
         temperature: float,
         client: Any | None = None,
+        budget: LLMBudgetController | None = None,
     ) -> None:
         self._model = model
         self._temperature = temperature
+        self._budget = budget
         self._client = client or AsyncOpenAI(
             api_key=api_key,
             base_url=base_url,
@@ -56,31 +59,60 @@ class DeepSeekLLM:
 
     async def generate(self, *, system_prompt: str, user_message: str) -> LLMResult:
         """Request one non-streaming completion from DeepSeek."""
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
+        ]
+        reservation = await self._reserve(messages=messages)
+        prompt_tokens = 0
+        completion_tokens = 0
+        finalized = False
         try:
             completion = await self._client.chat.completions.create(
                 **self._request_kwargs(
                     system_prompt=system_prompt,
                     user_message=user_message,
+                    max_tokens=(
+                        reservation.max_output_tokens
+                        if reservation is not None
+                        else None
+                    ),
                 ),
                 temperature=self._temperature,
             )
         except APIError as exc:
+            await self._finalize(
+                reservation,
+                prompt_tokens=0,
+                completion_tokens=0,
+            )
+            finalized = True
             raise self._translate_api_error(exc) from exc
 
-        if not completion.choices:
-            raise LLMUpstreamError("DeepSeek returned no completion choices.")
-
-        content = completion.choices[0].message.content
-        if not content:
-            raise LLMUpstreamError("DeepSeek returned an empty response.")
-
         usage = completion.usage
-        return LLMResult(
-            content=content,
-            model=completion.model or self._model,
-            prompt_tokens=usage.prompt_tokens if usage else 0,
-            completion_tokens=usage.completion_tokens if usage else 0,
-        )
+        prompt_tokens = usage.prompt_tokens if usage else 0
+        completion_tokens = usage.completion_tokens if usage else 0
+        try:
+            if not completion.choices:
+                raise LLMUpstreamError(
+                    "DeepSeek returned no completion choices."
+                )
+            content = completion.choices[0].message.content
+            if not content:
+                raise LLMUpstreamError("DeepSeek returned an empty response.")
+            return LLMResult(
+                content=content,
+                model=completion.model or self._model,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+            )
+        finally:
+            if not finalized:
+                await self._finalize(
+                    reservation,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                )
 
     async def stream(
         self,
@@ -90,11 +122,24 @@ class DeepSeekLLM:
     ) -> AsyncIterator[LLMStreamChunk]:
         """Stream incremental DeepSeek output without buffering the full answer."""
         upstream_stream: Any | None = None
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
+        ]
+        reservation = await self._reserve(messages=messages)
+        completion_text = ""
+        prompt_tokens = 0
+        completion_tokens = 0
         try:
             upstream_stream = await self._client.chat.completions.create(
                 **self._request_kwargs(
                     system_prompt=system_prompt,
                     user_message=user_message,
+                    max_tokens=(
+                        reservation.max_output_tokens
+                        if reservation is not None
+                        else None
+                    ),
                 ),
                 temperature=self._temperature,
                 stream=True,
@@ -109,18 +154,42 @@ class DeepSeekLLM:
                     delta = getattr(choice, "delta", None)
                     text = getattr(delta, "content", None)
                     if text:
+                        completion_text += str(text)
                         yield LLMStreamChunk(text=text, model=model)
 
                 usage = getattr(chunk, "usage", None)
                 if usage is not None:
+                    prompt_tokens = int(getattr(usage, "prompt_tokens", 0))
+                    completion_tokens = int(
+                        getattr(usage, "completion_tokens", 0)
+                    )
                     yield LLMStreamChunk(
                         model=model,
-                        prompt_tokens=getattr(usage, "prompt_tokens", None),
-                        completion_tokens=getattr(usage, "completion_tokens", None),
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
                     )
         except APIError as exc:
             raise self._translate_api_error(exc) from exc
         finally:
+            await self._finalize(
+                reservation,
+                prompt_tokens=(
+                    prompt_tokens
+                    or (
+                        reservation.estimated_prompt_tokens
+                        if reservation is not None
+                        else 0
+                    )
+                ),
+                completion_tokens=(
+                    completion_tokens
+                    or (
+                        len(completion_text)
+                        if reservation is not None
+                        else 0
+                    )
+                ),
+            )
             await self._close_stream(upstream_stream)
 
     async def generate_with_tools(
@@ -130,6 +199,13 @@ class DeepSeekLLM:
         tools: list[dict[str, Any]],
     ) -> LLMToolResponse:
         """Use native tools/tool_calls rather than parsing text JSON."""
+        reservation = await self._reserve(
+            messages=messages,
+            tools=tools,
+        )
+        prompt_tokens = 0
+        completion_tokens = 0
+        finalized = False
         try:
             completion = await self._client.chat.completions.create(
                 model=self._model,
@@ -137,52 +213,101 @@ class DeepSeekLLM:
                 tools=tools,
                 tool_choice="auto",
                 temperature=self._temperature,
+                **(
+                    {"max_tokens": reservation.max_output_tokens}
+                    if reservation is not None
+                    else {}
+                ),
             )
         except APIError as exc:
+            await self._finalize(
+                reservation,
+                prompt_tokens=0,
+                completion_tokens=0,
+            )
+            finalized = True
             raise self._translate_api_error(exc) from exc
 
-        if not completion.choices:
-            raise LLMUpstreamError("DeepSeek returned no completion choices.")
-
-        message = completion.choices[0].message
-        raw_tool_calls = getattr(message, "tool_calls", None) or []
-        tool_calls = tuple(
-            LLMToolCall(
-                id=str(call.id),
-                name=call.function.name,
-                arguments=call.function.arguments,
-            )
-            for call in raw_tool_calls
-        )
-        content = message.content
-        if not content and not tool_calls:
-            raise LLMUpstreamError(
-                "DeepSeek returned neither content nor tool calls."
-            )
-
         usage = completion.usage
-        return LLMToolResponse(
-            content=content,
-            model=completion.model or self._model,
-            tool_calls=tool_calls,
-            prompt_tokens=usage.prompt_tokens if usage else 0,
-            completion_tokens=usage.completion_tokens if usage else 0,
-        )
+        prompt_tokens = usage.prompt_tokens if usage else 0
+        completion_tokens = usage.completion_tokens if usage else 0
+        try:
+            if not completion.choices:
+                raise LLMUpstreamError(
+                    "DeepSeek returned no completion choices."
+                )
+            message = completion.choices[0].message
+            raw_tool_calls = getattr(message, "tool_calls", None) or []
+            tool_calls = tuple(
+                LLMToolCall(
+                    id=str(call.id),
+                    name=call.function.name,
+                    arguments=call.function.arguments,
+                )
+                for call in raw_tool_calls
+            )
+            content = message.content
+            if not content and not tool_calls:
+                raise LLMUpstreamError(
+                    "DeepSeek returned neither content nor tool calls."
+                )
+            return LLMToolResponse(
+                content=content,
+                model=completion.model or self._model,
+                tool_calls=tool_calls,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+            )
+        finally:
+            if not finalized:
+                await self._finalize(
+                    reservation,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                )
 
     def _request_kwargs(
         self,
         *,
         system_prompt: str,
         user_message: str,
+        max_tokens: int | None = None,
     ) -> dict[str, Any]:
         """Build common OpenAI-compatible request fields."""
-        return {
+        kwargs = {
             "model": self._model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message},
             ],
         }
+        if max_tokens is not None:
+            kwargs["max_tokens"] = max_tokens
+        return kwargs
+
+    async def _reserve(
+        self,
+        *,
+        messages: list[dict[str, Any]],
+        tools: list[dict[str, Any]] | None = None,
+    ) -> BudgetReservation | None:
+        if self._budget is None:
+            return None
+        return await self._budget.reserve(messages=messages, tools=tools)
+
+    async def _finalize(
+        self,
+        reservation: BudgetReservation | None,
+        *,
+        prompt_tokens: int,
+        completion_tokens: int,
+    ) -> None:
+        if self._budget is not None and reservation is not None:
+            await self._budget.finalize(
+                reservation,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+            )
 
     @staticmethod
     def _translate_api_error(exc: APIError) -> ApplicationError:

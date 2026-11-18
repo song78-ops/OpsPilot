@@ -2,8 +2,8 @@
 
 OpsPilot 是一个面向企业内部知识库与智能工单场景的 AI Agent 平台。
 
-当前已提供 FastAPI + DeepSeek 的非流式问答、SSE 流式问答、Vue3 聊天前端和
-Agent 智能助手页面，
+当前已提供 FastAPI + DeepSeek/Mock 的非流式问答、SSE 流式问答、Vue3 聊天前端
+和 Agent 智能助手页面，
 知识库文档上传、解析、清洗、文本切块、BGE Dense Embedding + Qdrant 检索，
 BM25 + RRF 混合检索、BGE CrossEncoder CPU 精排，以及带引用校验的知识库增强问答。
 LangGraph 已提供 Supervisor 意图识别、原生工具调用，以及基于
@@ -11,13 +11,101 @@ LangGraph 已提供 Supervisor 意图识别、原生工具调用，以及基于
 正式身份认证、多租户、RAG SSE 和多 Agent 循环。工单、审批和 Agent 会话历史
 分别保存在本地 SQLite。
 
+## 技术栈
+
+- 后端：Python 3.11、FastAPI、Pydantic Settings、SQLAlchemy、SQLite、LangGraph
+- 模型：OpenAI 兼容 DeepSeek API；默认使用确定性本地 Mock Provider
+- RAG：BGE Embedding、Qdrant Local、BM25、RRF、BGE CrossEncoder
+- 前端：Vue 3、TypeScript、Vite、Element Plus
+- 测试与交付：pytest、Vitest、Playwright Core；可选 Docker Compose 配置
+
+## 主要功能
+
+- 非流式问答、SSE 流式问答与多轮会话记忆
+- PDF、DOCX、TXT、Markdown 文档上传、解析、切块和索引
+- Dense、BM25、Hybrid 检索及 CrossEncoder 精排
+- 带证据边界、引用映射和后端引用校验的 RAG 问答
+- LangGraph 意图识别、原生工具调用、工单草稿创建/查询/修改
+- 人工审批、请求幂等、失败恢复和跨会话隔离
+- 默认离线 Mock 模式，以及真实模型的请求数、Token 和费用预算保护
+
+## 快速本地启动
+
+后端默认使用 Mock Provider，启动和测试不需要网络或 DeepSeek API Key：
+
+```powershell
+cd D:\Projects\OpsPilot\backend
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -e ".[dev]"
+Copy-Item .env.example .env
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+另开终端启动前端：
+
+```powershell
+cd D:\Projects\OpsPilot\frontend
+npm install
+npm run dev
+```
+
+默认访问地址以 Vite 输出为准。后端 API 文档位于
+<http://127.0.0.1:8000/docs>。真实 DeepSeek、模型缓存和服务部署的完整说明见本文
+后续章节。
+
 ## 环境要求
 
 - Windows
 - Python 3.11
 - Node.js 22.12 或更高版本
-- 可访问 DeepSeek API 的网络环境
-- DeepSeek API Key
+- 默认 Mock 模式不需要网络或 DeepSeek API Key
+- 仅在显式启用真实 DeepSeek 时需要网络和 API Key
+
+## 低成本开发模式
+
+后端默认使用确定性本地 Mock Provider，不调用付费 DeepSeek API：
+
+```text
+LLM_PROVIDER=mock
+```
+
+Mock Provider 会返回固定的 Supervisor、工单工具、聊天和 RAG 结构化响应，模型名
+为 `mock-local`，Token 记为 0。FastAPI、SQLite、Qdrant、BM25、工单和审批流程
+仍然使用真实本地实现。
+
+可选模式：
+
+```text
+LLM_PROVIDER=mock       # 默认，离线测试和浏览器 E2E
+LLM_PROVIDER=deepseek   # 付费 API，必须同时配置预算
+LLM_PROVIDER=disabled   # 拒绝所有 LLM 请求
+```
+
+真实 DeepSeek 调用受进程级预算控制：
+
+```text
+REAL_LLM_MAX_REQUESTS
+REAL_LLM_MAX_TOKENS
+REAL_LLM_MAX_COST_USD
+REAL_LLM_MAX_OUTPUT_TOKENS
+REAL_LLM_INPUT_COST_PER_MILLION_USD
+REAL_LLM_OUTPUT_COST_PER_MILLION_USD
+```
+
+请求发起前会检查请求数、保守 Prompt Token 预留、最大输出 Token 和费用预算。
+预算不足时直接返回 `429 LLM_BUDGET_EXCEEDED`，不会继续调用上游。查看进程内实际
+调用和 Token 使用：
+
+```text
+GET /api/v1/health/llm-budget
+```
+
+Agent/RAG 真实评测仍保留显式环境开关和独立数据库。旧评测结果仅作为历史记录，
+不会自动重跑。真实联调前应先报告预计请求次数、Token 预算和必要性，并得到确认。
+
+BGE Embedding、BM25 和 CrossEncoder 属于本地 CPU 推理，不产生 DeepSeek API
+费用，但会消耗本地计算时间和内存。
 
 ## 安装
 
@@ -37,7 +125,7 @@ python -m pip install -e ".[dev]"
 Copy-Item .env.example .env
 ```
 
-然后编辑 `backend/.env`，填写真实 API Key：
+默认 Mock 模式可保持 API Key 为空；仅显式启用真实 DeepSeek 时填写：
 
 ```dotenv
 DEEPSEEK_API_KEY=your_deepseek_api_key
@@ -45,7 +133,7 @@ DEEPSEEK_API_KEY=your_deepseek_api_key
 
 `.env` 已加入 `.gitignore`，不要提交真实密钥。
 
-## Docker 本地部署
+## Docker 配置与静态验证
 
 项目提供 Vue3 + Nginx 和 FastAPI 的双容器 Compose。默认使用 Mock，前端只监听
 `127.0.0.1:8080`，后端仅在 Compose 内部网络提供 `8000`：
@@ -59,6 +147,9 @@ docker compose up --build -d
 审批 Checkpoint、索引和模型缓存均不进入镜像。真实 DeepSeek 配置、模型准备、
 健康检查、重启恢复和审批代理安全边界见
 [Docker 部署说明](docs/docker-deployment.md)。
+
+以上为可复现的 Compose 配置和使用命令。本仓库当前只完成配置检查与静态测试，
+没有记录实际 `docker compose up` 部署成功，也不将静态验证表述为生产部署结果。
 
 ## 启动服务
 
@@ -408,6 +499,10 @@ backend\.venv\Scripts\python.exe evaluations\agent_v1\run_evaluation.py --valida
 
 $env:RUN_REAL_AGENT_EVALS = "1"
 $env:AGENT_EVAL_MAX_REQUESTS = "120"
+$env:AGENT_EVAL_MAX_TOKENS = "200000"
+$env:AGENT_EVAL_MAX_COST_USD = "1.00"
+$env:AGENT_EVAL_INPUT_COST_PER_MILLION_USD = "<configured-rate>"
+$env:AGENT_EVAL_OUTPUT_COST_PER_MILLION_USD = "<configured-rate>"
 backend\.venv\Scripts\python.exe evaluations\agent_v1\run_evaluation.py --real
 ```
 
@@ -432,12 +527,43 @@ evaluations/rag_qa_v1
 cd D:\Projects\OpsPilot
 $env:RUN_REAL_RAG_QA_EVALS = "1"
 $env:RAG_QA_MAX_REQUESTS = "100"
+$env:RAG_QA_MAX_TOKENS = "200000"
+$env:RAG_QA_MAX_COST_USD = "1.00"
+$env:RAG_QA_INPUT_COST_PER_MILLION_USD = "<configured-rate>"
+$env:RAG_QA_OUTPUT_COST_PER_MILLION_USD = "<configured-rate>"
 backend\.venv\Scripts\python.exe evaluations\rag_qa_v1\run_evaluation.py --real
 ```
 
 评测使用独立的 documents、Qdrant 和 BM25 目录，不访问正常知识库。输出包含
 Recall@3、MRR@5、nDCG@5、答案正确性、Groundedness、引用有效性与支持性、
 拒答率、性能、Token 和逐题明细。
+
+## 真实评测结果
+
+以下结果来自 2026-11-16 已保存的真实 DeepSeek 调用报告，不是在 Mock 模式下
+重新计算的结果。报告使用固定人工标签，未在评测后修改标签或重跑模型。
+
+| 评测 | 数据规模 | 主要结果 |
+|---|---:|---|
+| 检索 | 10 份文档 / 30 个问题 | Hybrid Recall@3 `1.0000`、MRR@5 `0.9800`、nDCG@5 `0.9852` |
+| Agent 意图 | 60 条人工标签 | Accuracy `0.9333` |
+| Agent 任务 | 12 个任务 | Tool selection `1.0000`；原始任务成功率 `0.9167`；安全拒答重评后 `1.0000`；数据库不一致 `0` |
+| RAG QA | 13 份文档 / 14 Chunk / 50 个问题 | Hybrid + Reranker Answer Correctness `0.9750`、Groundedness `0.9683`、Citation Validity `1.0000` |
+
+Agent 报告记录的配置模型为 `deepseek-chat`，实际观测模型为 `deepseek-flash`。
+12 个任务中只有跨会话访问任务因“明确拒绝且无工具调用、数据库安全断言全部通过”
+从原始成功 `0.9167` 重评成功，模型未重跑、标签未修改。
+
+RAG QA 的 Hybrid + Reranker 模式 Fully Correct Rate 为 `0.9000`，Correct
+Refusal Rate 为 `1.0000`，Attack/Conflict Safety 为 `0.8750`；q23、q25、q30
+仍需人工事实复核。Reranker 将 MRR@5 从 `0.9611` 提升到 `1.0000`，将答案正确性
+从 `0.9667` 提升到 `0.9750`，但平均总延迟从 `1310.04 ms` 增至 `4595.89 ms`。
+
+原始报告和逐题明细：
+
+- [检索评测报告](evaluations/rag_retrieval_v1/latest_results.md)
+- [Agent 评测报告](evaluations/agent_v1/results/20261116T014540Z-6861172f-rescored.md)
+- [RAG QA 评测报告](evaluations/rag_qa_v1/results/20261116T021407Z-a032ee3e-rescored.md)
 
 ## LangGraph Agent
 
@@ -990,4 +1116,16 @@ E2E 会创建真实本地工单数据，但不包含敏感文档或密钥。
 
 如果希望额外验证真实 DeepSeek 网络调用，请先填写 `backend/.env`，启动服务后调用
 上面的非流式或流式问答接口。真实调用结果取决于 API Key、账户额度和网络状态。
+
+## 当前验证记录
+
+2026-11-18 在本工作树上完成：
+
+- 后端：`152 passed, 2 skipped`
+- 前端：9 个测试文件、`55 passed`
+- 前端：`vue-tsc --noEmit` 与 Vite 生产构建通过
+- Git 安全：截至上传前的 15 个既有提交逐版本执行密钥扫描，未发现真实 API Key、
+  `.env`、数据库、模型权重、隐私邮箱或手机号
+
+Docker 仅完成配置与静态测试，未执行实际容器部署。
 

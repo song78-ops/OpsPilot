@@ -54,6 +54,10 @@ Real execution is disabled by default:
 cd D:\Projects\OpsPilot
 $env:RUN_REAL_RAG_QA_EVALS = "1"
 $env:RAG_QA_MAX_REQUESTS = "100"
+$env:RAG_QA_MAX_TOKENS = "200000"
+$env:RAG_QA_MAX_COST_USD = "1.00"
+$env:RAG_QA_INPUT_COST_PER_MILLION_USD = "<configured-rate>"
+$env:RAG_QA_OUTPUT_COST_PER_MILLION_USD = "<configured-rate>"
 $env:RAG_QA_MAX_RETRIES = "0"
 $env:RAG_QA_TIMEOUT_SECONDS = "60"
 backend\.venv\Scripts\python.exe evaluations\rag_qa_v1\run_evaluation.py --real
@@ -61,6 +65,10 @@ backend\.venv\Scripts\python.exe evaluations\rag_qa_v1\run_evaluation.py --real
 
 Both modes use the same document snapshot, questions, Top-K, Candidate-K,
 embedding model, generation prompt, model configuration, and temperature.
+
+This command is disabled unless explicitly enabled. Do not rerun existing Agent
+v1 or RAG v1 evaluations during low-cost mode. Token and cost budgets are
+enforced by the shared request guard; zero budgets block all paid calls.
 
 ## Metrics
 

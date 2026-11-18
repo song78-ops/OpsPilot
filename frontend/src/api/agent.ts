@@ -27,6 +27,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   LLM_CONNECTION_ERROR: '无法连接模型服务，请检查网络。',
   LLM_UPSTREAM_ERROR: '模型服务返回异常，请稍后重试。',
   CONFIGURATION_ERROR: '服务端尚未完成必要的模型配置。',
+  REAL_LLM_DISABLED: '真实模型已禁用，请使用本地 Mock 模式或由管理员显式启用。',
+  LLM_BUDGET_EXCEEDED: '模型请求预算已耗尽，已阻止后续付费调用。',
   CONVERSATION_NOT_FOUND: '会话不存在或已经被移除。',
   CONVERSATION_PERSISTENCE_ERROR: '会话历史写入失败，请稍后重试。',
   TICKET_DRAFT_NOT_FOUND: '工单草稿不存在或已经被移除。',

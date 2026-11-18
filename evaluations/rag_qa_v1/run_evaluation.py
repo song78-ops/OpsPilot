@@ -22,6 +22,10 @@ sys.path.insert(0, str(EVALUATION_DIR))
 
 from app.core.config import Settings  # noqa: E402
 from app.llm.deepseek import DeepSeekLLM  # noqa: E402
+from app.llm.budget import (  # noqa: E402
+    LLMBudgetController,
+    LLMBudgetLimits,
+)
 from app.rag.embeddings.bge import BgeEmbeddingModel  # noqa: E402
 from app.rag.qa.context import EvidenceContextBuilder  # noqa: E402
 from app.rag.qa.service import RagQAService  # noqa: E402
@@ -99,21 +103,52 @@ def validate_dataset(dataset: dict[str, Any]) -> None:
         raise ValueError(f"Missing evaluation documents: {missing}")
 
 
-def build_llm(settings: Settings) -> DeepSeekLLM:
+def build_llm(
+    settings: Settings,
+) -> tuple[DeepSeekLLM, LLMBudgetController]:
     if settings.deepseek_api_key is None:
         raise RuntimeError("DEEPSEEK_API_KEY is not configured")
     api_key = settings.deepseek_api_key.get_secret_value().strip()
     if not api_key:
         raise RuntimeError("DEEPSEEK_API_KEY is empty")
-    return DeepSeekLLM(
-        api_key=api_key,
-        base_url=settings.deepseek_base_url,
-        model=settings.deepseek_model,
-        timeout_seconds=float(
-            os.getenv("RAG_QA_TIMEOUT_SECONDS", "60")
+    budget = LLMBudgetController(
+        LLMBudgetLimits(
+            enabled=True,
+            max_requests=int(os.getenv("RAG_QA_MAX_REQUESTS", "0")),
+            max_tokens=int(os.getenv("RAG_QA_MAX_TOKENS", "0")),
+            max_cost_usd=float(
+                os.getenv("RAG_QA_MAX_COST_USD", "0")
+            ),
+            max_output_tokens=int(
+                os.getenv("RAG_QA_MAX_OUTPUT_TOKENS", "1024")
+            ),
+            input_cost_per_million_usd=float(
+                os.getenv(
+                    "RAG_QA_INPUT_COST_PER_MILLION_USD",
+                    "0",
+                )
+            ),
+            output_cost_per_million_usd=float(
+                os.getenv(
+                    "RAG_QA_OUTPUT_COST_PER_MILLION_USD",
+                    "0",
+                )
+            ),
+        )
+    )
+    return (
+        DeepSeekLLM(
+            api_key=api_key,
+            base_url=settings.deepseek_base_url,
+            model=settings.deepseek_model,
+            timeout_seconds=float(
+                os.getenv("RAG_QA_TIMEOUT_SECONDS", "60")
+            ),
+            max_retries=int(os.getenv("RAG_QA_MAX_RETRIES", "0")),
+            temperature=settings.llm_temperature,
+            budget=budget,
         ),
-        max_retries=int(os.getenv("RAG_QA_MAX_RETRIES", "0")),
-        temperature=settings.llm_temperature,
+        budget,
     )
 
 
@@ -325,14 +360,32 @@ async def main() -> int:
         )
         return 2
 
-    max_requests = int(os.getenv("RAG_QA_MAX_REQUESTS", "100"))
+    max_requests = int(os.getenv("RAG_QA_MAX_REQUESTS", "0"))
+    max_tokens = int(os.getenv("RAG_QA_MAX_TOKENS", "0"))
+    max_cost = float(os.getenv("RAG_QA_MAX_COST_USD", "0"))
+    input_rate = float(
+        os.getenv("RAG_QA_INPUT_COST_PER_MILLION_USD", "0")
+    )
+    output_rate = float(
+        os.getenv("RAG_QA_OUTPUT_COST_PER_MILLION_USD", "0")
+    )
     if estimated_requests > max_requests:
         raise RuntimeError(
             f"Estimated model requests {estimated_requests} exceed "
             f"limit {max_requests}"
         )
+    if (
+        max_tokens <= 0
+        or max_cost <= 0
+        or input_rate <= 0
+        or output_rate <= 0
+    ):
+        raise RuntimeError(
+            "Real RAG QA evaluation requires positive token, cost, "
+            "input-rate, and output-rate budgets."
+        )
     settings = Settings()
-    llm = build_llm(settings)
+    llm, budget = build_llm(settings)
     run_id = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{uuid.uuid4().hex[:8]}"
     runtime_root = (
         PROJECT_ROOT / "storage" / "e2e" / "rag_qa_v1" / run_id
@@ -474,6 +527,7 @@ async def main() -> int:
                 settings=settings,
             )
     finally:
+        budget_snapshot = await budget.snapshot()
         vector_store.close()
         await llm.aclose()
 
@@ -543,6 +597,7 @@ async def main() -> int:
             "max_retries": int(os.getenv("RAG_QA_MAX_RETRIES", "0")),
             "estimated_model_requests": estimated_requests,
             "max_model_requests": max_requests,
+            "llm_budget": budget_snapshot,
             "runtime_root": str(runtime_root),
             "prompt_sha256_16": hashlib.sha256(
                 PROMPT_PATH.read_bytes()

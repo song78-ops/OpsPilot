@@ -52,6 +52,10 @@ Real execution is disabled by default:
 cd D:\Projects\OpsPilot
 $env:RUN_REAL_AGENT_EVALS = "1"
 $env:AGENT_EVAL_MAX_REQUESTS = "120"
+$env:AGENT_EVAL_MAX_TOKENS = "200000"
+$env:AGENT_EVAL_MAX_COST_USD = "1.00"
+$env:AGENT_EVAL_INPUT_COST_PER_MILLION_USD = "<configured-rate>"
+$env:AGENT_EVAL_OUTPUT_COST_PER_MILLION_USD = "<configured-rate>"
 $env:AGENT_EVAL_MAX_RETRIES = "0"
 $env:AGENT_EVAL_TIMEOUT_SECONDS = "60"
 backend\.venv\Scripts\python.exe evaluations\agent_v1\run_evaluation.py --real
@@ -60,6 +64,10 @@ backend\.venv\Scripts\python.exe evaluations\agent_v1\run_evaluation.py --real
 The request limit is checked before the run. The script records model name,
 base URL, temperature, retry count, prompt hashes, data versions, and run date.
 It never records the API key.
+
+Do not run this command in low-cost mode without explicit approval. The shared
+LLM budget guard blocks calls whose request, token, or configured cost budget is
+zero or exhausted.
 
 Reports are written to `results/<run_id>.json` and `results/<run_id>.md`.
 

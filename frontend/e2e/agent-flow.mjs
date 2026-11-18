@@ -33,11 +33,31 @@ async function launchPage(browser) {
 
 async function openAgent(page) {
   await page.goto(baseUrl, { waitUntil: 'networkidle' })
+  await assertMockProvider(page)
   await page.getByTestId('nav-agent').click()
   await page.getByRole('heading', {
     name: '工单助手',
     level: 1,
   }).waitFor()
+}
+
+async function assertMockProvider(page) {
+  const budget = await page.evaluate(async () => {
+    const response = await fetch('/api/v1/health/llm-budget')
+    return response.json()
+  })
+  assert.equal(budget.provider, 'mock')
+  assert.equal(budget.budget.requests_used, 0)
+}
+
+async function assertZeroPaidUsage(page) {
+  const budget = await page.evaluate(async () => {
+    const response = await fetch('/api/v1/health/llm-budget')
+    return response.json()
+  })
+  assert.equal(budget.provider, 'mock')
+  assert.equal(budget.budget.requests_used, 0)
+  assert.equal(budget.budget.total_tokens_used, 0)
 }
 
 async function runTicketAgent(page, prompt) {
@@ -181,6 +201,7 @@ try {
       JSON.stringify({ draftId, threadId, title, marker }, null, 2),
       'utf8',
     )
+    await assertZeroPaidUsage(page)
     await page.screenshot({
       path: path.join(screenshotDir, 'agent-pending-before-restart.png'),
       fullPage: true,
@@ -283,6 +304,7 @@ try {
       ),
       'utf8',
     )
+    await assertZeroPaidUsage(page)
     await context.close()
     assert.deepEqual(consoleErrors, [])
     console.log('agent-flow: resume passed')
@@ -291,7 +313,9 @@ try {
   } else if (phase === 'smoke') {
     const { context, page } = await launchPage(browser)
     await page.goto(baseUrl, { waitUntil: 'networkidle' })
+    await assertMockProvider(page)
     await smokeExistingPages(page)
+    await assertZeroPaidUsage(page)
     await context.close()
     assert.deepEqual(consoleErrors, [])
     console.log('agent-flow: existing pages smoke passed')
@@ -329,6 +353,7 @@ try {
       fullPage: true,
     })
 
+    await assertZeroPaidUsage(page)
     await context.close()
     assert.deepEqual(consoleErrors, [])
     console.log('agent-flow: four intent UI passed')

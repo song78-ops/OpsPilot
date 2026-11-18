@@ -36,6 +36,10 @@ from app.conversations.service import ConversationMemoryService  # noqa: E402
 from app.conversations.types import ToolResultRecord  # noqa: E402
 from app.core.config import Settings  # noqa: E402
 from app.llm.base import LLMToolCall  # noqa: E402
+from app.llm.budget import (  # noqa: E402
+    LLMBudgetController,
+    LLMBudgetLimits,
+)
 from app.llm.deepseek import DeepSeekLLM  # noqa: E402
 from app.schemas.approval import ApprovalDecisionRequest  # noqa: E402
 from app.schemas.ticket import (  # noqa: E402
@@ -152,21 +156,52 @@ def estimated_model_requests(
     return intent_count + agent_turns * 3
 
 
-def build_llm(settings: Settings) -> DeepSeekLLM:
+def build_llm(
+    settings: Settings,
+) -> tuple[DeepSeekLLM, LLMBudgetController]:
     if settings.deepseek_api_key is None:
         raise RuntimeError("DEEPSEEK_API_KEY is not configured")
     api_key = settings.deepseek_api_key.get_secret_value().strip()
     if not api_key:
         raise RuntimeError("DEEPSEEK_API_KEY is empty")
-    return DeepSeekLLM(
-        api_key=api_key,
-        base_url=settings.deepseek_base_url,
-        model=settings.deepseek_model,
-        timeout_seconds=float(
-            os.getenv("AGENT_EVAL_TIMEOUT_SECONDS", "60")
+    budget = LLMBudgetController(
+        LLMBudgetLimits(
+            enabled=True,
+            max_requests=int(os.getenv("AGENT_EVAL_MAX_REQUESTS", "0")),
+            max_tokens=int(os.getenv("AGENT_EVAL_MAX_TOKENS", "0")),
+            max_cost_usd=float(
+                os.getenv("AGENT_EVAL_MAX_COST_USD", "0")
+            ),
+            max_output_tokens=int(
+                os.getenv("AGENT_EVAL_MAX_OUTPUT_TOKENS", "1024")
+            ),
+            input_cost_per_million_usd=float(
+                os.getenv(
+                    "AGENT_EVAL_INPUT_COST_PER_MILLION_USD",
+                    "0",
+                )
+            ),
+            output_cost_per_million_usd=float(
+                os.getenv(
+                    "AGENT_EVAL_OUTPUT_COST_PER_MILLION_USD",
+                    "0",
+                )
+            ),
+        )
+    )
+    return (
+        DeepSeekLLM(
+            api_key=api_key,
+            base_url=settings.deepseek_base_url,
+            model=settings.deepseek_model,
+            timeout_seconds=float(
+                os.getenv("AGENT_EVAL_TIMEOUT_SECONDS", "60")
+            ),
+            max_retries=int(os.getenv("AGENT_EVAL_MAX_RETRIES", "0")),
+            temperature=settings.llm_temperature,
+            budget=budget,
         ),
-        max_retries=int(os.getenv("AGENT_EVAL_MAX_RETRIES", "0")),
-        temperature=settings.llm_temperature,
+        budget,
     )
 
 
@@ -948,7 +983,15 @@ async def main() -> int:
         )
         return 2
 
-    max_requests = int(os.getenv("AGENT_EVAL_MAX_REQUESTS", "120"))
+    max_requests = int(os.getenv("AGENT_EVAL_MAX_REQUESTS", "0"))
+    max_tokens = int(os.getenv("AGENT_EVAL_MAX_TOKENS", "0"))
+    max_cost = float(os.getenv("AGENT_EVAL_MAX_COST_USD", "0"))
+    input_rate = float(
+        os.getenv("AGENT_EVAL_INPUT_COST_PER_MILLION_USD", "0")
+    )
+    output_rate = float(
+        os.getenv("AGENT_EVAL_OUTPUT_COST_PER_MILLION_USD", "0")
+    )
     estimated = estimated_model_requests(
         len(intent_data["items"]),
         task_data["tasks"],
@@ -957,9 +1000,19 @@ async def main() -> int:
         raise RuntimeError(
             f"Estimated model requests {estimated} exceed limit {max_requests}"
         )
+    if (
+        max_tokens <= 0
+        or max_cost <= 0
+        or input_rate <= 0
+        or output_rate <= 0
+    ):
+        raise RuntimeError(
+            "Real evaluation requires positive token, cost, input-rate, "
+            "and output-rate budgets."
+        )
 
     settings = Settings()
-    llm = build_llm(settings)
+    llm, budget = build_llm(settings)
     run_id = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{uuid.uuid4().hex[:8]}"
     run_root = PROJECT_ROOT / "storage" / "e2e" / "agent_eval_v1" / run_id
     run_root.mkdir(parents=True, exist_ok=True)
@@ -985,6 +1038,7 @@ async def main() -> int:
                 flush=True,
             )
     finally:
+        budget_snapshot = await budget.snapshot()
         await llm.aclose()
 
     result = {
@@ -1012,6 +1066,7 @@ async def main() -> int:
             ),
             "estimated_model_requests": estimated,
             "max_model_requests": max_requests,
+            "llm_budget": budget_snapshot,
             "intent_data_version": intent_data["version"],
             "task_data_version": task_data["version"],
             "supervisor_prompt_sha256_16": prompt_hash(

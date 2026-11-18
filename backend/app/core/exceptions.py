@@ -66,3 +66,25 @@ class LLMUpstreamError(ApplicationError):
             status_code=502,
         )
 
+
+class LLMDisabledError(ApplicationError):
+    """Raised when real model access is disabled for low-cost development."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "真实模型已禁用，请使用本地 Mock 模式，或在配置明确预算后启用。",
+            code="REAL_LLM_DISABLED",
+            status_code=503,
+        )
+
+
+class LLMBudgetExceededError(ApplicationError):
+    """Raised before a call that would exceed the configured LLM budget."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(
+            f"模型预算已阻止本次请求：{reason}。",
+            code="LLM_BUDGET_EXCEEDED",
+            status_code=429,
+        )
+

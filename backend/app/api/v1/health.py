@@ -4,8 +4,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from typing import Any, Annotated
 
+from app.api.deps import get_llm_budget_controller
 from app.core.config import Settings, get_settings
+from app.llm.budget import LLMBudgetController
 
 router = APIRouter(tags=["health"])
 
@@ -26,4 +29,19 @@ async def health(
         service=settings.app_name,
         environment=settings.app_env,
     )
+
+
+@router.get("/health/llm-budget")
+async def llm_budget(
+    settings: Annotated[Settings, Depends(get_settings)],
+    controller: Annotated[
+        LLMBudgetController,
+        Depends(get_llm_budget_controller),
+    ],
+) -> dict[str, Any]:
+    """Report paid-model budget usage without exposing credentials."""
+    return {
+        "provider": settings.llm_provider,
+        "budget": await controller.snapshot(),
+    }
 

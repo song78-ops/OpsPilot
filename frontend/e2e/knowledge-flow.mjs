@@ -37,6 +37,12 @@ try {
   })
 
   await page.goto(baseUrl, { waitUntil: 'networkidle' })
+  const initialBudget = await page.evaluate(async () => {
+    const response = await fetch('/api/v1/health/llm-budget')
+    return response.json()
+  })
+  assert.equal(initialBudget.provider, 'mock')
+  assert.equal(initialBudget.budget.requests_used, 0)
   assert.equal(await page.getByTestId('nav-chat').isVisible(), true)
   await page.getByTestId('chat-input').fill('只回复 OK')
   await page.getByTestId('chat-send').click()
@@ -112,6 +118,13 @@ try {
     path: path.join(screenshotDir, 'knowledge-desktop.png'),
     fullPage: true,
   })
+  const finalBudget = await page.evaluate(async () => {
+    const response = await fetch('/api/v1/health/llm-budget')
+    return response.json()
+  })
+  assert.equal(finalBudget.provider, 'mock')
+  assert.equal(finalBudget.budget.requests_used, 0)
+  assert.equal(finalBudget.budget.total_tokens_used, 0)
   await context.close()
 
   const mobileContext = await browser.newContext({
